@@ -3,31 +3,27 @@ import 'package:characters/characters.dart';
 import '../../config/pacing_config.dart';
 import '../chunker/chunk_info.dart';
 
+export '../../config/pacing_config.dart' show ScriptType;
+
 /// Clock provider function to enable deterministic testing without DateTime.now().
 typedef Clock = DateTime Function();
 
-/// Supported writing script families for grapheme-based handwriting pacing.
-enum ScriptType {
-  latin,
-  devanagari,
-  kannada,
-}
-
-/// Pure Dart pacing engine for handwriting dictation based on grapheme clusters.
+/// Pure Dart pacing engine for handwriting dictation based on grapheme clusters and LPM.
 ///
-/// Implements the exact user-specified formula:
+/// Implements the Pacing Redesign formula:
 /// ```
-/// writingBudget = ( graphemes * secondsPerGrapheme ) / tempo(t)
-/// writingTime   = writingBudget * jitter          (counted from START of speech)
-/// gap           = max(minGap, writingTime - speechDuration) + boundaryPause
-/// totalCycle    = speechDuration + gap
+/// writeSeconds = (graphemes / userLpm) * 60 * scriptFactor
+/// gap          = max(minGap, writeSeconds - overlapFactor * speechSeconds) + boundaryPause
+/// totalCycle   = speechSeconds + gap
 /// ```
 class PacingEngine {
   PacingEngine({
     this.config = PacingConfig.defaultConfig,
+    double? userLpm,
     Clock? clock,
     math.Random? random,
-  })  : _clock = clock ?? DateTime.now,
+  })  : _customUserLpm = userLpm,
+        _clock = clock ?? DateTime.now,
         _random = random ?? math.Random() {
     _sessionStartTime = _clock();
     _lastBreathTime = _sessionStartTime;
@@ -42,20 +38,41 @@ class PacingEngine {
 
   double _fatigueOffsetMinutes = 0.0;
 
-  // Custom runtime overrides (e.g. from calibration or live tuning panel)
-  double? _customSecondsPerGraphemeLatin;
-  double? _customSecondsPerGraphemeDevanagari;
-  double? _customSecondsPerGraphemeKannada;
+  // Custom runtime overrides (e.g. from calibration, tuning panel, or adaptive feedback)
+  double? _customUserLpm;
+  double? _customScriptFactorLatin;
+  double? _customScriptFactorDevanagari;
+  double? _customScriptFactorKannada;
   double? _customFatigueStrength;
   double? _customCommaPause;
   double? _customSentencePause;
   double? _customParagraphPause;
   double? _customGnaniSpeechRate;
 
+  /// User handwriting speed in letters per minute (LPM).
+  double get userLpm {
+    if (_customUserLpm != null) {
+      return _customUserLpm!;
+    }
+    // Backward-compatibility: if tests or legacy configs explicitly override secondsPerGraphemeLatin
+    if (config.secondsPerGraphemeLatin != 0.28 && config.secondsPerGraphemeLatin > 0) {
+      return 60.0 / config.secondsPerGraphemeLatin;
+    }
+    return config.defaultUserLpm;
+  }
+
+  set userLpm(double val) => _customUserLpm = val.clamp(1.0, 100000.0);
+
+  /// Convenient alias for [userLpm].
+  double get lpm => userLpm;
+  set lpm(double val) => userLpm = val;
+
   /// Counts non-whitespace Unicode Extended Grapheme Clusters using Dart [characters].
+  ///
+  /// Spaces (including all whitespace characters) are strictly excluded from the count.
   static int countGraphemes(String text) {
     if (text.isEmpty) return 0;
-    return text.characters.where((c) => c.trim().isNotEmpty).length;
+    return text.characters.where((c) => c != ' ' && c.trim().isNotEmpty).length;
   }
 
   /// Detects the script family of [text] or resolves from [languageCode].
@@ -69,32 +86,45 @@ class PacingEngine {
     return ScriptType.latin;
   }
 
-  /// Returns the configured writing seconds per grapheme for a given script or text.
-  double getWritingSecondsPerGrapheme({ScriptType? script, String? text, String? languageCode}) {
+  /// Returns the script multiplier factor for a given script, text, or language code.
+  double getScriptFactor({ScriptType? script, String? text, String? languageCode}) {
     final s = script ?? (text != null ? detectScript(text, languageCode: languageCode) : ScriptType.latin);
     switch (s) {
       case ScriptType.kannada:
-        return _customSecondsPerGraphemeKannada ?? config.secondsPerGraphemeKannada;
+        return _customScriptFactorKannada ?? config.scriptFactorKannada;
       case ScriptType.devanagari:
-        return _customSecondsPerGraphemeDevanagari ?? config.secondsPerGraphemeDevanagari;
+        return _customScriptFactorDevanagari ?? config.scriptFactorDevanagari;
       case ScriptType.latin:
-        return _customSecondsPerGraphemeLatin ?? config.secondsPerGraphemeLatin;
+        return _customScriptFactorLatin ?? config.scriptFactorLatin;
     }
   }
 
-  /// Sets custom writing seconds per grapheme for a given script.
-  void setSecondsPerGrapheme(ScriptType script, double seconds) {
-    final clamped = seconds.clamp(0.1, 2.0);
+  /// Sets custom script factor multiplier for a given script family.
+  void setScriptFactor(ScriptType script, double factor) {
+    final clamped = factor.clamp(0.1, 5.0);
     switch (script) {
       case ScriptType.kannada:
-        _customSecondsPerGraphemeKannada = clamped;
+        _customScriptFactorKannada = clamped;
         break;
       case ScriptType.devanagari:
-        _customSecondsPerGraphemeDevanagari = clamped;
+        _customScriptFactorDevanagari = clamped;
         break;
       case ScriptType.latin:
-        _customSecondsPerGraphemeLatin = clamped;
+        _customScriptFactorLatin = clamped;
         break;
+    }
+  }
+
+  /// Backwards-compatibility helper for seconds per grapheme: (60 / LPM) * scriptFactor.
+  double getWritingSecondsPerGrapheme({ScriptType? script, String? text, String? languageCode}) {
+    final factor = getScriptFactor(script: script, text: text, languageCode: languageCode);
+    return (60.0 / userLpm) * factor;
+  }
+
+  /// Backwards-compatibility setter for seconds per grapheme.
+  void setSecondsPerGrapheme(ScriptType script, double seconds) {
+    if (seconds > 0) {
+      userLpm = 60.0 / seconds;
     }
   }
 
@@ -114,20 +144,12 @@ class PacingEngine {
   double get gnaniSpeechRate => _customGnaniSpeechRate ?? config.gnaniSpeechRate;
   set gnaniSpeechRate(double val) => _customGnaniSpeechRate = val.clamp(0.85, 1.15);
 
-  /// Backwards-compatibility getter for tests.
-  double get currentWritingSpeed {
-    // Equivalent words/sec assuming ~5 graphemes per word
-    final secPerGrapheme = getWritingSecondsPerGrapheme(script: ScriptType.latin);
-    return secPerGrapheme > 0 ? (1.0 / (secPerGrapheme * 5.0)) : config.defaultWritingSpeed;
-  }
+  /// Backwards-compatibility getter for words/sec assuming ~5 graphemes per word.
+  double get currentWritingSpeed => userLpm / (5.0 * 60.0);
 
   set writingSpeed(double wordsPerSec) {
     if (wordsPerSec > 0) {
-      // 1 word = ~5 graphemes -> sec/grapheme = 1 / (wordsPerSec * 5)
-      final secPerGrapheme = (1.0 / (wordsPerSec * 5.0)).clamp(0.1, 2.0);
-      setSecondsPerGrapheme(ScriptType.latin, secPerGrapheme);
-      setSecondsPerGrapheme(ScriptType.devanagari, secPerGrapheme * 1.35);
-      setSecondsPerGrapheme(ScriptType.kannada, secPerGrapheme * 1.6);
+      userLpm = wordsPerSec * 5.0 * 60.0;
     }
   }
 
@@ -164,32 +186,37 @@ class PacingEngine {
     return tempo.clamp(config.tempoMin, config.tempo0);
   }
 
-  /// Computes the unjittered writing time budget in seconds for [chunk].
+  /// Computes the unjittered writing time in seconds for [chunk].
   ///
-  /// Budget = ( graphemes * secondsPerGrapheme ) / tempo(t)
-  double calculateWritingBudget(ChunkInfo chunk, {String? languageCode}) {
+  /// Formula: writeSeconds = (graphemes / userLpm) * 60 * scriptFactor
+  /// (scaled by current tempo if fatigue is active).
+  double calculateWriteSeconds(ChunkInfo chunk, {String? languageCode}) {
     final graphemes = countGraphemes(chunk.text);
     if (graphemes <= 0) return 0.0;
 
-    final secPerGrapheme = getWritingSecondsPerGrapheme(
+    final scriptFactor = getScriptFactor(
       text: chunk.text,
       languageCode: languageCode,
     );
-    final tempo = currentTempo;
-    return (graphemes * secPerGrapheme) / tempo;
+    final effectiveLpm = userLpm * currentTempo;
+    if (effectiveLpm <= 0) return 0.0;
+
+    return (graphemes / effectiveLpm) * 60.0 * scriptFactor;
+  }
+
+  /// Backwards-compatibility alias for [calculateWriteSeconds].
+  double calculateWritingBudget(ChunkInfo chunk, {String? languageCode}) {
+    return calculateWriteSeconds(chunk, languageCode: languageCode);
   }
 
   /// Computes the silence pause duration following [chunk].
   ///
-  /// Formula:
-  ///   writingBudget = ( graphemes * secondsPerGrapheme ) / tempo(t)
-  ///   writingTime   = writingBudget * jitter
-  ///   netWriting    = max(minGap, writingTime - speechDuration)
-  ///   gap           = netWriting + boundaryPause
+  /// Pacing Redesign Formula:
+  ///   writeSeconds = (graphemes / userLpm) * 60 * scriptFactor
+  ///   gap          = max(minGap, writeSeconds - overlapFactor * speechSeconds) + boundaryPause
   ///
-  /// When speech duration exceeds the writing budget, [netWriting] strictly
-  /// evaluates to [minGapSeconds], ensuring the gap is never negative and
-  /// boundary pauses are always preserved.
+  /// When writeSeconds minus overlapping speech falls below [minGapSeconds],
+  /// the net gap evaluates strictly to [minGapSeconds] plus any punctuation [boundaryPause].
   double calculateGap(
     ChunkInfo chunk, {
     double speechDurationSeconds = 0.0,
@@ -201,18 +228,18 @@ class PacingEngine {
       applySawtoothBreath();
     }
 
-    // 2. Writing time budget from START of speech.
-    final writingBudget = calculateWritingBudget(chunk, languageCode: languageCode);
+    // 2. Compute writing time in seconds.
+    final writeSeconds = calculateWriteSeconds(chunk, languageCode: languageCode);
     final jitter = applyJitter ? _generateLognormalJitter() : 1.0;
-    final writingTime = writingBudget * jitter;
+    final writingTime = writeSeconds * jitter;
 
-    // 3. Net writing time remaining after speech ends: max(minGap, writingTime - speechDuration)
+    // 3. Overlap with speech: max(minGap, writeSeconds - overlapFactor * speechSeconds)
     final netWritingTime = math.max(
       config.minGapSeconds,
-      writingTime - speechDurationSeconds,
+      writingTime - (config.overlapFactor * speechDurationSeconds),
     );
 
-    // 4. Boundary pause added on top of writing time.
+    // 4. Boundary pause added on top of net writing time.
     final boundaryPause = _resolveSyntaxPause(chunk.boundaryType);
 
     // 5. Total gap.
@@ -232,18 +259,14 @@ class PacingEngine {
     _lastBreathTime = now;
   }
 
-  /// Slower adaptation: increases seconds per grapheme slightly.
+  /// Slower adaptation: user needs more time (lower LPM).
   void adaptSlower([ScriptType? script]) {
-    final s = script ?? ScriptType.latin;
-    final current = getWritingSecondsPerGrapheme(script: s);
-    setSecondsPerGrapheme(s, current + 0.02);
+    userLpm = math.max(10.0, userLpm - 2.0);
   }
 
-  /// Faster adaptation: decreases seconds per grapheme slightly.
+  /// Faster adaptation: user writes faster (higher LPM).
   void adaptFaster([ScriptType? script]) {
-    final s = script ?? ScriptType.latin;
-    final current = getWritingSecondsPerGrapheme(script: s);
-    setSecondsPerGrapheme(s, math.max(0.10, current - 0.015));
+    userLpm = math.min(180.0, userLpm + 2.0);
   }
 
   /// Resolves boundary pause duration based on punctuation.

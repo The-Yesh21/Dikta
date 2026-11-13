@@ -300,7 +300,7 @@ void main() {
 
     test('manual writingSpeed setter updates handwriting speed immediately', () {
       final engine = PacingEngine();
-      expect(engine.currentWritingSpeed, closeTo(0.71, 0.05));
+      expect(engine.userLpm, equals(48.0));
 
       engine.writingSpeed = 1.0;
       expect(engine.currentWritingSpeed, closeTo(1.0, 0.05));

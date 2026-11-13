@@ -45,9 +45,11 @@ void main() {
     setUp(() {
       engine = PacingEngine(
         config: const PacingConfig(
-          secondsPerGraphemeLatin: 0.30,
-          secondsPerGraphemeDevanagari: 0.40,
-          secondsPerGraphemeKannada: 0.50,
+          overlapFactor: 0.5,
+          scriptFactorLatin: 1.0,
+          scriptFactorDevanagari: 1.0,
+          scriptFactorKannada: 1.0,
+          defaultUserLpm: 48.0,
           syntaxPauseCommaSeconds: 0.4,
           syntaxPauseSentenceSeconds: 1.2,
           syntaxPauseParagraphSeconds: 2.5,
@@ -66,7 +68,7 @@ void main() {
         boundaryType: BoundaryType.none,
       );
 
-      // Extreme speech durations: 10s, 60s, 300s
+      // Extreme speech durations: 5s, 10s, 60s, 300s
       for (final duration in [5.0, 10.0, 60.0, 300.0]) {
         final gap = engine.calculateGap(chunk, speechDurationSeconds: duration);
         expect(gap, greaterThanOrEqualTo(0.3));
@@ -74,7 +76,7 @@ void main() {
     });
 
     test('SPEECH LONGER THAN BUDGET GIVES MINGAP (+ boundary pause)', () {
-      // Text: "Hello" (5 graphemes @ 0.30s = 1.50s budget)
+      // Text: "Hello" (5 graphemes @ 48 LPM = 6.25s writeSeconds)
       const chunkNone = ChunkInfo(
         text: 'Hello',
         index: 0,
@@ -100,28 +102,28 @@ void main() {
         boundaryType: BoundaryType.paragraph,
       );
 
-      // Speech duration = 5.0s, which is well over the 1.5s writing budget.
-      // Net writing time = max(0.3, 1.5 - 5.0) = 0.3s (minGap).
+      // Speech duration = 20.0s -> overlap = 0.5 * 20.0 = 10.0s.
+      // Net writing time = max(0.3, 6.25 - 10.0) = 0.3s (minGap).
 
       // Boundary none: minGap + 0.0 = 0.30s
-      final gapNone = engine.calculateGap(chunkNone, speechDurationSeconds: 5.0, applyJitter: false);
+      final gapNone = engine.calculateGap(chunkNone, speechDurationSeconds: 20.0, applyJitter: false);
       expect(gapNone, closeTo(0.30, 0.001));
 
       // Boundary comma: minGap + 0.4s = 0.70s
-      final gapComma = engine.calculateGap(chunkComma, speechDurationSeconds: 5.0, applyJitter: false);
+      final gapComma = engine.calculateGap(chunkComma, speechDurationSeconds: 20.0, applyJitter: false);
       expect(gapComma, closeTo(0.70, 0.001));
 
       // Boundary sentence: minGap + 1.2s = 1.50s
-      final gapSentence = engine.calculateGap(chunkSentence, speechDurationSeconds: 5.0, applyJitter: false);
+      final gapSentence = engine.calculateGap(chunkSentence, speechDurationSeconds: 20.0, applyJitter: false);
       expect(gapSentence, closeTo(1.50, 0.001));
 
       // Boundary paragraph: minGap + 2.5s = 2.80s
-      final gapParagraph = engine.calculateGap(chunkParagraph, speechDurationSeconds: 5.0, applyJitter: false);
+      final gapParagraph = engine.calculateGap(chunkParagraph, speechDurationSeconds: 20.0, applyJitter: false);
       expect(gapParagraph, closeTo(2.80, 0.001));
     });
 
     test('NORMAL PACING: net writing budget is counted from START of speech', () {
-      // Text: "Mitochondria generates energy," (28 non-whitespace graphemes @ 0.30s = 8.40s budget)
+      // Text: "Mitochondria generates energy," (28 non-whitespace graphemes @ 48 LPM = 35.0s budget)
       const chunk = ChunkInfo(
         text: 'Mitochondria generates energy,',
         index: 0,
@@ -130,35 +132,47 @@ void main() {
       );
 
       // Speech takes 2.0s
-      // Writing budget = 8.40s
-      // Remaining writing time = 8.40s - 2.0s = 6.40s
+      // Overlap = 0.5 * 2.0 = 1.0s
+      // Remaining writing time = 35.0s - 1.0s = 34.0s
       // Comma boundary = +0.4s
-      // Total gap = 6.40s + 0.4s = 6.80s
+      // Total gap = 34.0s + 0.4s = 34.4s
       final gap = engine.calculateGap(chunk, speechDurationSeconds: 2.0, applyJitter: false);
-      expect(gap, closeTo(6.80, 0.05));
+      expect(gap, closeTo(34.40, 0.05));
 
-      // Total cycle = speech (2.0s) + gap (6.80s) = 8.80s
+      // Total cycle = speech (2.0s) + gap (34.40s) = 36.40s
       final totalCycle = 2.0 + gap;
-      expect(totalCycle, closeTo(8.80, 0.05));
+      expect(totalCycle, closeTo(36.40, 0.05));
     });
 
     test('Separate config pacing per script family', () {
+      final scriptEngine = PacingEngine(
+        config: const PacingConfig(
+          overlapFactor: 0.5,
+          scriptFactorLatin: 1.0,
+          scriptFactorDevanagari: 1.2,
+          scriptFactorKannada: 1.5,
+          defaultUserLpm: 60.0, // 60 lpm = 1 letter/sec
+          jitterSigma: 0.0,
+          fatigueStrength: 0.0,
+        ),
+      );
+
       const latinChunk = ChunkInfo(text: 'ABCDE', index: 0, wordCount: 1, boundaryType: BoundaryType.none);
       const hindiChunk = ChunkInfo(text: 'नमस्ते', index: 1, wordCount: 1, boundaryType: BoundaryType.none);
       const kannadaChunk = ChunkInfo(text: 'ದ್ಯುತಿಸಂಶ್ಲೇಷಣೆ', index: 2, wordCount: 1, boundaryType: BoundaryType.none);
 
-      final budgetLatin = engine.calculateWritingBudget(latinChunk);
-      final budgetHindi = engine.calculateWritingBudget(hindiChunk);
-      final budgetKannada = engine.calculateWritingBudget(kannadaChunk);
+      final budgetLatin = scriptEngine.calculateWritingBudget(latinChunk);
+      final budgetHindi = scriptEngine.calculateWritingBudget(hindiChunk);
+      final budgetKannada = scriptEngine.calculateWritingBudget(kannadaChunk);
 
-      // Latin: 5 graphemes * 0.30s = 1.50s
-      expect(budgetLatin, closeTo(1.50, 0.01));
+      // Latin: (5 / 60) * 60 * 1.0 = 5.00s
+      expect(budgetLatin, closeTo(5.00, 0.01));
 
-      // Hindi: 3 graphemes * 0.40s = 1.20s
-      expect(budgetHindi, closeTo(1.20, 0.01));
+      // Hindi: (3 / 60) * 60 * 1.2 = 3.60s
+      expect(budgetHindi, closeTo(3.60, 0.01));
 
-      // Kannada: 8 graphemes * 0.50s = 4.00s
-      expect(budgetKannada, closeTo(4.00, 0.01));
+      // Kannada: (8 / 60) * 60 * 1.5 = 12.00s
+      expect(budgetKannada, closeTo(12.00, 0.01));
     });
   });
 

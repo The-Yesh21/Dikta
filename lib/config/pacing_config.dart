@@ -1,3 +1,10 @@
+/// Supported writing script families for handwriting dictation pacing.
+enum ScriptType {
+  latin,
+  devanagari,
+  kannada,
+}
+
 /// Central configuration for all pacing, chunking, and timing parameters.
 ///
 /// Per project specification in AGENTS.md:
@@ -7,6 +14,12 @@ class PacingConfig {
     this.tempo0 = 1.0,
     this.tempoMin = 0.7,
     this.tauMinutes = 12.0,
+    this.overlapFactor = 0.5,
+    this.scriptFactorLatin = 1.0,
+    this.scriptFactorDevanagari = 1.0,
+    this.scriptFactorKannada = 1.0,
+    this.dictationFactor = 0.8,
+    this.defaultUserLpm = 48.0,
     this.secondsPerGraphemeLatin = 0.28,
     this.secondsPerGraphemeDevanagari = 0.38,
     this.secondsPerGraphemeKannada = 0.45,
@@ -42,6 +55,24 @@ class PacingConfig {
 
   /// Time constant in minutes for fatigue tempo decay (default 12 min).
   final double tauMinutes;
+
+  /// Fraction of speech duration overlapping with handwriting (default 0.5).
+  final double overlapFactor;
+
+  /// Writing time multiplier for Latin script (default 1.0).
+  final double scriptFactorLatin;
+
+  /// Writing time multiplier for Devanagari script (default 1.0).
+  final double scriptFactorDevanagari;
+
+  /// Writing time multiplier for Kannada script (default 1.0).
+  final double scriptFactorKannada;
+
+  /// Factor applied to age-based writing prior to account for dictation listening overhead (default 0.8).
+  final double dictationFactor;
+
+  /// Default handwriting speed in letters per minute (default 48.0 LPM).
+  final double defaultUserLpm;
 
   /// Writing seconds per grapheme for Latin script (English) - default 0.28s.
   final double secondsPerGraphemeLatin;
@@ -97,7 +128,7 @@ class PacingConfig {
   /// Number of CPU threads for background TTS inference.
   final int ttsNumThreads;
 
-  /// Target number of pre-synthesized chunks in the lookahead buffer (Step 6).
+  /// Target number of pre-synthesized chunks in the lookahead buffer.
   final int lookaheadTargetChunks;
 
   /// Gnani Cloud TTS speech speed multiplier (supported range: 0.85 to 1.15).
@@ -118,6 +149,18 @@ class PacingConfig {
   /// Default speaker ID.
   final int defaultSpeakerId;
 
+  /// Returns the script multiplier factor for the given [script].
+  double getScriptFactor(ScriptType script) {
+    switch (script) {
+      case ScriptType.latin:
+        return scriptFactorLatin;
+      case ScriptType.devanagari:
+        return scriptFactorDevanagari;
+      case ScriptType.kannada:
+        return scriptFactorKannada;
+    }
+  }
+
   /// Default configuration constants.
   static const PacingConfig defaultConfig = PacingConfig();
 
@@ -125,6 +168,12 @@ class PacingConfig {
     double? tempo0,
     double? tempoMin,
     double? tauMinutes,
+    double? overlapFactor,
+    double? scriptFactorLatin,
+    double? scriptFactorDevanagari,
+    double? scriptFactorKannada,
+    double? dictationFactor,
+    double? defaultUserLpm,
     double? secondsPerGraphemeLatin,
     double? secondsPerGraphemeDevanagari,
     double? secondsPerGraphemeKannada,
@@ -155,6 +204,12 @@ class PacingConfig {
       tempo0: tempo0 ?? this.tempo0,
       tempoMin: tempoMin ?? this.tempoMin,
       tauMinutes: tauMinutes ?? this.tauMinutes,
+      overlapFactor: overlapFactor ?? this.overlapFactor,
+      scriptFactorLatin: scriptFactorLatin ?? this.scriptFactorLatin,
+      scriptFactorDevanagari: scriptFactorDevanagari ?? this.scriptFactorDevanagari,
+      scriptFactorKannada: scriptFactorKannada ?? this.scriptFactorKannada,
+      dictationFactor: dictationFactor ?? this.dictationFactor,
+      defaultUserLpm: defaultUserLpm ?? this.defaultUserLpm,
       secondsPerGraphemeLatin: secondsPerGraphemeLatin ?? this.secondsPerGraphemeLatin,
       secondsPerGraphemeDevanagari: secondsPerGraphemeDevanagari ?? this.secondsPerGraphemeDevanagari,
       secondsPerGraphemeKannada: secondsPerGraphemeKannada ?? this.secondsPerGraphemeKannada,
