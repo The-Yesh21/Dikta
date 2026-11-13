@@ -84,8 +84,11 @@ class GnaniTtsEngine implements VoiceEngine {
     double speed = 1.0,
     String? model,
   }) async {
-    final effectiveVoice = voice ?? _currentVoice;
     final effectiveLanguage = language ?? _currentLanguage;
+    final effectiveVoice = voice ??
+        (language != null && !GnaniVoiceCatalog.getVoicesForLanguage(effectiveLanguage).any((v) => v.name == _currentVoice)
+            ? GnaniVoiceCatalog.getVoicesForLanguage(effectiveLanguage).first.name
+            : _currentVoice);
     final effectiveModel = model ?? _currentModel;
 
     // Clamp speed to Gnani API supported range: [0.85, 1.15]

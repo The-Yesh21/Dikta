@@ -55,6 +55,24 @@ class _VoiceAuditionScreenState extends State<VoiceAuditionScreen> {
     _activeVoiceName = widget.selectedVoiceName;
     _ttsEngine = GnaniTtsEngine();
 
+    try {
+      _audioPlayer.setAudioContext(
+        AudioContext(
+          android: const AudioContextAndroid(
+            isSpeakerphoneOn: false,
+            stayAwake: true,
+            contentType: AndroidContentType.speech,
+            usageType: AndroidUsageType.media,
+            audioFocus: AndroidAudioFocus.gainTransient,
+          ),
+          iOS: AudioContextIOS(
+            category: AVAudioSessionCategory.playback,
+            options: const {AVAudioSessionOptions.duckOthers},
+          ),
+        ),
+      );
+    } catch (_) {}
+
     _playerCompleteSub = _audioPlayer.onPlayerComplete.listen((_) {
       if (mounted) {
         setState(() {

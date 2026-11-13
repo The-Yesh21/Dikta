@@ -125,14 +125,44 @@ abstract class DictationAudioPlayer {
 
 /// Default implementation wrapping [AudioPlayer] with [DeviceFileSource].
 class DefaultDictationAudioPlayer implements DictationAudioPlayer {
-  DefaultDictationAudioPlayer({AudioPlayer? player}) : _player = player ?? AudioPlayer();
+  DefaultDictationAudioPlayer({AudioPlayer? player}) : _player = player ?? AudioPlayer() {
+    _initAudioContext();
+  }
   final AudioPlayer _player;
+
+  void _initAudioContext() {
+    try {
+      _player.setAudioContext(
+        AudioContext(
+          android: const AudioContextAndroid(
+            isSpeakerphoneOn: false,
+            stayAwake: true,
+            contentType: AndroidContentType.speech,
+            usageType: AndroidUsageType.media,
+            audioFocus: AndroidAudioFocus.gainTransient,
+          ),
+          iOS: AudioContextIOS(
+            category: AVAudioSessionCategory.playback,
+            options: const {AVAudioSessionOptions.duckOthers},
+          ),
+        ),
+      );
+    } catch (_) {
+      // Ignore unsupported platforms in test environments
+    }
+  }
 
   @override
   Stream<void> get onPlayerComplete => _player.onPlayerComplete;
 
   @override
-  Future<void> play(String filePath) => _player.play(DeviceFileSource(filePath));
+  Future<void> play(String filePath) async {
+    final file = File(filePath);
+    if (!await file.exists()) {
+      throw FileSystemException('Audio file not found at path', filePath);
+    }
+    await _player.play(DeviceFileSource(filePath));
+  }
 
   @override
   Future<void> playBytes(Uint8List bytes) => _player.play(BytesSource(bytes, mimeType: 'audio/wav'));
@@ -396,8 +426,34 @@ class DictationPlaybackController {
         }
       });
 
-      await _audioPlayer.play(playFilePath);
-      await playCompleter.future;
+      // Safety fallback timeout based on calculated audio duration + 3s buffer
+      // Protects against native focus loss or dropped onPlayerComplete events
+      final durationMs = (durationSec * 1000).toInt().clamp(500, 30000);
+      final safetyTimer = Timer(Duration(milliseconds: durationMs + 3000), () {
+        completeSub.cancel();
+        if (!playCompleter.isCompleted) {
+          playCompleter.complete();
+        }
+      });
+
+      try {
+        await _audioPlayer.play(playFilePath);
+        await playCompleter.future;
+      } catch (e) {
+        safetyTimer.cancel();
+        completeSub.cancel();
+        _errorMessage = 'Playback error: $e';
+        _errorController.add(_errorMessage);
+        _transitionTo(DictationPlaybackState.error);
+        if (isTempFile) {
+          await _tempFileManager.deleteTempWave(playFilePath);
+          _currentTempWavPath = null;
+        }
+        return;
+      } finally {
+        safetyTimer.cancel();
+        completeSub.cancel();
+      }
 
       if (isTempFile) {
         await _tempFileManager.deleteTempWave(playFilePath);

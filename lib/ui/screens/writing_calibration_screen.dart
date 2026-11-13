@@ -5,6 +5,8 @@ import '../../core/pacing/pacing_engine.dart';
 import '../../services/audio/dictation_playback_controller.dart';
 import '../../services/storage/user_pacing_storage.dart';
 import '../../services/tts/voice_engine.dart';
+import '../../config/gnani_config.dart';
+import '../../services/tts/gnani_tts_engine.dart';
 
 /// Supported steps in the calibration flow.
 enum CalibrationStep {
@@ -171,8 +173,14 @@ class _WritingCalibrationScreenState extends State<WritingCalibrationScreen> {
 
     try {
       if (widget.voiceEngine != null && _player != null) {
+        // Resolve valid voice for selected calibration language
+        final voice = widget.voiceEngine is GnaniTtsEngine
+            ? GnaniVoiceCatalog.getVoicesForLanguage(_selectedLanguage).first.name
+            : null;
+
         final generated = await widget.voiceEngine!.synthesize(
           sentence,
+          voice: voice,
           language: _selectedLanguage,
         );
 
@@ -184,28 +192,31 @@ class _WritingCalibrationScreenState extends State<WritingCalibrationScreen> {
           }
         });
 
-        // Safety fallback timeout based on generated audio duration + 1s
-        final durationMs = (generated.durationSeconds * 1000).toInt().clamp(500, 15000);
-        final safetyTimer = Timer(Duration(milliseconds: durationMs + 1000), () {
+        // Safety fallback timeout based on generated audio duration + 2s buffer
+        final durationMs = (generated.durationSeconds * 1000).toInt().clamp(500, 20000);
+        final safetyTimer = Timer(Duration(milliseconds: durationMs + 2000), () {
           if (!completer.isCompleted) {
             completer.complete();
           }
         });
 
-        if (generated.audioFilePath != null) {
-          await _player!.play(generated.audioFilePath!);
-        } else if (generated.wavBytes != null) {
-          await _player!.playBytes(generated.wavBytes!);
+        try {
+          if (generated.audioFilePath != null) {
+            await _player!.play(generated.audioFilePath!);
+          } else if (generated.wavBytes != null) {
+            await _player!.playBytes(generated.wavBytes!);
+          }
+          await completer.future;
+        } finally {
+          safetyTimer.cancel();
+          sub.cancel();
         }
-
-        await completer.future;
-        safetyTimer.cancel();
-        sub.cancel();
       } else {
         // Fallback simulated dictation reading time (2.0s)
         await Future.delayed(const Duration(milliseconds: 2000));
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('WritingCalibration audio error: $e');
       // If audio fails, grace period before writing starts
       await Future.delayed(const Duration(milliseconds: 1000));
     }
