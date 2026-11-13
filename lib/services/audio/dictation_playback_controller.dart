@@ -473,11 +473,11 @@ class DictationPlaybackController {
       _currentSpeechDurationSeconds = durationSec;
       _gapManuallySkipped = false;
       _gapStopwatch = Stopwatch()..start();
-      _transitionTo(DictationPlaybackState.waitingGap);
-
       final gapDuration = Duration(milliseconds: (effectiveGap * 1000).round());
       _currentGapRemaining = gapDuration;
       _currentGapProgress = 0.0;
+      _gapTickController.add(gapDuration);
+      _transitionTo(DictationPlaybackState.waitingGap);
 
       _currentGapTimer = PausableGapTimer(
         totalDuration: gapDuration,

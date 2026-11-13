@@ -40,7 +40,7 @@ class PacingConfig {
     this.adaptiveFasterDelta = 0.02,
     this.ttsNumThreads = 4,
     this.lookaheadTargetChunks = 3,
-    this.gnaniSpeechRate = 1.0,
+    this.gnaniSpeechRate = 0.85,
     this.defaultWritingSpeed = 0.7,
     this.kokoroSpeed = 0.8,
     this.longWordCharThreshold = 6.0,

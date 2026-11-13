@@ -48,6 +48,11 @@ class PacingEngine {
   double? _customSentencePause;
   double? _customParagraphPause;
   double? _customGnaniSpeechRate;
+  double? _customMaxGapSeconds;
+
+  /// Maximum gap duration in seconds (prevents runaway pauses between chunks).
+  double get maxGapSeconds => _customMaxGapSeconds ?? config.maxGapSeconds;
+  set maxGapSeconds(double val) => _customMaxGapSeconds = val.clamp(1.0, 60.0);
 
   /// User handwriting speed in letters per minute (LPM).
   double get userLpm {
@@ -234,7 +239,7 @@ class PacingEngine {
     final writingTime = writeSeconds * jitter;
 
     // 3. Overlap with speech: max(minGap, min(maxGap, writeSeconds) - overlapFactor * speechSeconds)
-    final clampedWritingTime = math.min(config.maxGapSeconds, writingTime);
+    final clampedWritingTime = math.min(maxGapSeconds, writingTime);
     final netWritingTime = math.max(
       config.minGapSeconds,
       clampedWritingTime - (config.overlapFactor * speechDurationSeconds),

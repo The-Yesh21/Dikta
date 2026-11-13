@@ -40,13 +40,15 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
   StreamSubscription<String?>? _errorSub;
   StreamSubscription<bool>? _pacePromptSub;
 
+  // Dedicated ValueNotifiers for jitter-free, 120fps smooth gap timer animation
+  final ValueNotifier<double> _gapProgressNotifier = ValueNotifier<double>(0.0);
+  final ValueNotifier<Duration> _gapRemainingNotifier = ValueNotifier<Duration>(Duration.zero);
+
   bool _showPacePrompt = false;
   bool _isLogsExpanded = false;
 
   DictationPlaybackState _playbackState = DictationPlaybackState.idle;
   final List<DictationSessionLog> _logs = [];
-  Duration _remainingGap = Duration.zero;
-  double _gapProgress = 0.0;
   ChunkInfo? _currentChunk;
   int _currentChunkIndex = 0;
   int _totalChunks = 0;
@@ -87,6 +89,11 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
     _ttsEngine = GnaniTtsEngine();
     _pacingEngine = PacingEngine(config: PacingConfig.defaultConfig);
 
+    // Apply writer-friendly defaults: slower speech rate for dictation, tight gaps (max 7s)
+    _pacingEngine.gnaniSpeechRate = 0.85; // Slower clear speech for dictation
+    _pacingEngine.maxGapSeconds = 7.0;    // Human gap between phrases (never 30-50s)
+    _pacingEngine.userLpm = 90.0;         // Natural student writing speed
+
     // Load saved user profile if calibrated
     try {
       final storage = UserPacingStorageService();
@@ -110,6 +117,10 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
 
     _stateSub = _playbackController!.onStateChanged.listen((state) {
       if (mounted) {
+        if (state == DictationPlaybackState.waitingGap) {
+          _gapProgressNotifier.value = 0.0;
+          _gapRemainingNotifier.value = _playbackController?.currentGapRemaining ?? Duration.zero;
+        }
         setState(() {
           _playbackState = state;
           _currentChunk = _playbackController?.currentChunk;
@@ -126,13 +137,10 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
       }
     });
 
+    // Smooth updates through ValueNotifiers without rebuilding the whole tree
     _gapSub = _playbackController!.onGapTick.listen((remaining) {
-      if (mounted) {
-        setState(() {
-          _remainingGap = remaining;
-          _gapProgress = _playbackController?.currentGapProgress ?? 0.0;
-        });
-      }
+      _gapRemainingNotifier.value = remaining;
+      _gapProgressNotifier.value = _playbackController?.currentGapProgress ?? 0.0;
     });
 
     _errorSub = _playbackController!.onErrorChanged.listen((err) {
@@ -164,6 +172,8 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
     _gapSub?.cancel();
     _errorSub?.cancel();
     _pacePromptSub?.cancel();
+    _gapProgressNotifier.dispose();
+    _gapRemainingNotifier.dispose();
     _playbackController?.dispose();
     _ttsEngine.dispose();
     _textController.dispose();
@@ -347,6 +357,8 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               children: [
                 _buildActiveDictationCard(),
+                const SizedBox(height: 12),
+                _buildQuickPacingSettingsBar(),
                 const SizedBox(height: 16),
                 _buildControlsSection(),
                 const SizedBox(height: 16),
@@ -362,7 +374,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
     );
   }
 
-  /// Calm, high-craft status bar showing engine state and adaptive LPM
+  /// Status bar showing engine state and adaptive LPM
   Widget _buildPacingStatusBar() {
     final isLocked = _playbackController?.feedbackLoop.isLocked ?? false;
     final currentAlpha = _playbackController?.feedbackLoop.currentAlpha ?? 0.25;
@@ -392,9 +404,9 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
               const SizedBox(width: 8),
               Text(
                 _playbackState == DictationPlaybackState.playingChunk
-                    ? 'Speaking chunk'
+                    ? 'Speaking chunk (${_pacingEngine.gnaniSpeechRate.toStringAsFixed(2)}x)'
                     : _playbackState == DictationPlaybackState.waitingGap
-                        ? 'Writing pause'
+                        ? 'Writing pause (≤${_pacingEngine.maxGapSeconds.toInt()}s)'
                         : _playbackState == DictationPlaybackState.preparing
                             ? 'Preparing audio'
                             : 'Ready',
@@ -448,8 +460,6 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
     final isPreparing = _playbackState == DictationPlaybackState.preparing;
     final isGap = _playbackState == DictationPlaybackState.waitingGap;
     final isPaused = _playbackState == DictationPlaybackState.paused;
-
-    final remainingSec = _remainingGap.inMilliseconds / 1000.0;
 
     return Container(
       decoration: BoxDecoration(
@@ -509,7 +519,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                                 border: Border.all(color: const Color(0xFFE2E8F0)),
                               ),
                               child: Text(
-                                '${PacingEngine.countGraphemes(_currentChunk!.text)} graphemes · ${_currentChunk!.boundaryType.name}',
+                                '${PacingEngine.countGraphemes(_currentChunk!.text)} letters · ${_currentChunk!.boundaryType.name}',
                                 style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
                               ),
                             ),
@@ -534,66 +544,12 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                       ),
                       const SizedBox(height: 18),
 
-                      // Writing Countdown & Instant Advance Moment
+                      // Writing Countdown & Instant Advance Moment (Smooth, Jitter-Free)
                       if (isGap) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF0FDF4),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFBBF7D0)),
-                          ),
-                          child: Row(
-                            children: [
-                              SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  value: (1.0 - _gapProgress).clamp(0.0, 1.0),
-                                  strokeWidth: 2.5,
-                                  backgroundColor: const Color(0xFFDCFCE7),
-                                  color: const Color(0xFF16A34A),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Copy now: ${remainingSec.toStringAsFixed(1)}s writing pause',
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w700,
-                                        color: Color(0xFF166534),
-                                      ),
-                                    ),
-                                    const Text(
-                                      'Tap "Done" when finished to advance faster',
-                                      style: TextStyle(fontSize: 11, color: Color(0xFF15803D)),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              FilledButton(
-                                onPressed: () => _playbackController?.skipGap(),
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: const Color(0xFF16A34A),
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text('Done', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                    SizedBox(width: 4),
-                                    Icon(Icons.arrow_forward, size: 14),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
+                        _SmoothGapCountdown(
+                          progressNotifier: _gapProgressNotifier,
+                          remainingNotifier: _gapRemainingNotifier,
+                          onDone: () => _playbackController?.skipGap(),
                         ),
                       ] else if (isPlaying) ...[
                         Row(
@@ -605,7 +561,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              'Speaking aloud (${_currentVoice} · ${_currentLanguage})...',
+                              'Speaking aloud at ${_pacingEngine.gnaniSpeechRate.toStringAsFixed(2)}x dictation speed...',
                               style: const TextStyle(fontSize: 12, color: Color(0xFF059669), fontWeight: FontWeight.w500),
                             ),
                           ],
@@ -636,6 +592,108 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Direct quick controls for speech speed and gap pause length
+  Widget _buildQuickPacingSettingsBar() {
+    final speechRate = _pacingEngine.gnaniSpeechRate;
+    final maxGap = _pacingEngine.maxGapSeconds;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        children: [
+          // Speech Speed Row (Dictation needs to be less)
+          Row(
+            children: [
+              const Icon(Icons.record_voice_over, size: 14, color: Color(0xFF64748B)),
+              const SizedBox(width: 6),
+              const Text('Voice Speed:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF475569))),
+              const Spacer(),
+              _buildSpeedPill(0.85, '0.85x (Slower)'),
+              const SizedBox(width: 6),
+              _buildSpeedPill(0.92, '0.92x'),
+              const SizedBox(width: 6),
+              _buildSpeedPill(1.00, '1.00x'),
+            ],
+          ),
+          const Divider(height: 14, color: Color(0xFFF1F5F9)),
+          // Gap Pause Length Row (Gap between parts needs to be less)
+          Row(
+            children: [
+              const Icon(Icons.hourglass_bottom, size: 14, color: Color(0xFF64748B)),
+              const SizedBox(width: 6),
+              const Text('Pause Between Parts:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF475569))),
+              const Spacer(),
+              _buildGapPill(4.0, 'Tight (4s)'),
+              const SizedBox(width: 6),
+              _buildGapPill(7.0, 'Normal (7s)'),
+              const SizedBox(width: 6),
+              _buildGapPill(11.0, 'Relaxed (11s)'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSpeedPill(double rate, String label) {
+    final isSelected = (_pacingEngine.gnaniSpeechRate - rate).abs() < 0.03;
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _pacingEngine.gnaniSpeechRate = rate;
+        });
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            color: isSelected ? Colors.white : const Color(0xFF475569),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGapPill(double maxGap, String label) {
+    final isSelected = (_pacingEngine.maxGapSeconds - maxGap).abs() < 0.5;
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _pacingEngine.maxGapSeconds = maxGap;
+        });
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF2563EB) : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            color: isSelected ? Colors.white : const Color(0xFF475569),
           ),
         ),
       ),
@@ -784,7 +842,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
     return btn;
   }
 
-  /// Elegant in-session Pace Feedback Prompt (with correct semantics: Too Slow = Speed up, Too Fast = Slow down)
+  /// In-session Pace Feedback Prompt
   Widget _buildPacePromptCard() {
     if (!_showPacePrompt) return const SizedBox.shrink();
 
@@ -1132,6 +1190,101 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
           TextButton(
             onPressed: () => _playbackController?.retryCurrentChunk(),
             child: const Text('Retry', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFDC2626))),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Dedicated, Butter-Smooth Gap Countdown Widget.
+/// Uses [ValueListenableBuilder] and [TweenAnimationBuilder] to eliminate all timer jitter and screen rebuild glitches.
+class _SmoothGapCountdown extends StatelessWidget {
+  const _SmoothGapCountdown({
+    required this.progressNotifier,
+    required this.remainingNotifier,
+    required this.onDone,
+  });
+
+  final ValueNotifier<double> progressNotifier;
+  final ValueNotifier<Duration> remainingNotifier;
+  final VoidCallback onDone;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0FDF4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFBBF7D0)),
+      ),
+      child: Row(
+        children: [
+          ValueListenableBuilder<double>(
+            valueListenable: progressNotifier,
+            builder: (context, progress, _) {
+              return SizedBox(
+                width: 22,
+                height: 22,
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween<double>(begin: progress, end: progress),
+                  duration: const Duration(milliseconds: 90),
+                  curve: Curves.linear,
+                  builder: (context, val, _) {
+                    return CircularProgressIndicator(
+                      value: (1.0 - val).clamp(0.0, 1.0),
+                      strokeWidth: 2.5,
+                      backgroundColor: const Color(0xFFDCFCE7),
+                      color: const Color(0xFF16A34A),
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: ValueListenableBuilder<Duration>(
+              valueListenable: remainingNotifier,
+              builder: (context, remaining, _) {
+                final sec = remaining.inMilliseconds / 1000.0;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Copy now: ${sec.toStringAsFixed(1)}s writing pause',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF166534),
+                      ),
+                    ),
+                    const Text(
+                      'Tap "Done" when finished to advance faster',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF15803D)),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+          FilledButton(
+            onPressed: onDone,
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF16A34A),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Done', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                SizedBox(width: 4),
+                Icon(Icons.arrow_forward, size: 14),
+              ],
+            ),
           ),
         ],
       ),
