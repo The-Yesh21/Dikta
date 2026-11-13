@@ -8,6 +8,7 @@ import '../../core/pacing/pacing_engine.dart';
 import '../../core/pacing/pacing_feedback_loop.dart';
 import '../storage/user_pacing_storage.dart';
 import '../tts/voice_engine.dart';
+import '../../core/spelling/word_speller.dart';
 import 'pausable_gap_timer.dart';
 import 'temp_audio_file_manager.dart';
 
@@ -193,14 +194,17 @@ class DictationPlaybackController {
     TempAudioFileManager? tempFileManager,
     PacingFeedbackLoop? feedbackLoop,
     UserPacingStorageService? storageService,
+    WordSpeller? wordSpeller,
     this.enablePrefetch = false,
+    this.spellDifficultWords = false,
   })  : _speakerId = speakerId ?? config.defaultSpeakerId,
         _voice = voice,
         _language = language,
         _audioPlayer = audioPlayer ?? DefaultDictationAudioPlayer(),
         _tempFileManager = tempFileManager ?? TempAudioFileManager(),
         feedbackLoop = feedbackLoop ?? PacingFeedbackLoop(initialLpm: pacingEngine.userLpm),
-        storageService = storageService ?? UserPacingStorageService();
+        storageService = storageService ?? UserPacingStorageService(),
+        wordSpeller = wordSpeller ?? const WordSpeller();
 
   final VoiceEngine voiceEngine;
   final PacingEngine pacingEngine;
@@ -209,7 +213,9 @@ class DictationPlaybackController {
   final TempAudioFileManager _tempFileManager;
   final PacingFeedbackLoop feedbackLoop;
   final UserPacingStorageService storageService;
+  final WordSpeller wordSpeller;
   final bool enablePrefetch;
+  bool spellDifficultWords;
 
   int _speakerId;
   int get speakerId => _speakerId;
@@ -328,11 +334,15 @@ class DictationPlaybackController {
       final baseRate = _voice != null ? pacingEngine.gnaniSpeechRate : config.kokoroSpeed;
       final speed = pacingEngine.calculateChunkVoiceSpeed(chunk, baseRate: baseRate);
 
+      final spokenText = spellDifficultWords
+          ? wordSpeller.buildSpokenTextWithSpelling(chunk.text)
+          : chunk.text;
+
       GeneratedAudio audio;
       final stopwatch = Stopwatch()..start();
       try {
         audio = await voiceEngine.synthesize(
-          chunk.text,
+          spokenText,
           speakerId: _speakerId,
           voice: _voice,
           language: _language,
@@ -440,6 +450,10 @@ class DictationPlaybackController {
       });
 
       try {
+        if (_currentChunkIndex == 0) {
+          // Native audio hardware warmup delay for cold session start
+          await Future.delayed(const Duration(milliseconds: 250));
+        }
         await _audioPlayer.play(playFilePath);
         _prefetchNextChunk();
         await playCompleter.future;
@@ -684,8 +698,11 @@ class DictationPlaybackController {
       final nextChunk = _chunks[nextIdx];
       final baseRate = _voice != null ? pacingEngine.gnaniSpeechRate : config.kokoroSpeed;
       final speed = pacingEngine.calculateChunkVoiceSpeed(nextChunk, baseRate: baseRate);
+      final spoken = spellDifficultWords
+          ? wordSpeller.buildSpokenTextWithSpelling(nextChunk.text)
+          : nextChunk.text;
       voiceEngine.synthesize(
-        nextChunk.text,
+        spoken,
         speakerId: _speakerId,
         voice: _voice,
         language: _language,

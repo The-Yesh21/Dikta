@@ -4,6 +4,6 @@ import 'package:dictation_app/main.dart';
 void main() {
   testWidgets('App smoke test', (WidgetTester tester) async {
     await tester.pumpWidget(const DictationApp());
-    expect(find.text('Dictation Cloud MVP (Gnani)'), findsOneWidget);
+    expect(find.text('Dikta'), findsOneWidget);
   });
 }

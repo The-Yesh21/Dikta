@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../config/gnani_config.dart';
@@ -7,6 +8,7 @@ import '../../core/chunker/chunk_info.dart';
 import '../../core/chunker/text_chunker.dart';
 import '../../core/pacing/pacing_engine.dart';
 import '../../core/pacing/pacing_feedback_loop.dart';
+import '../../core/spelling/word_speller.dart';
 import '../../services/audio/dictation_playback_controller.dart';
 import '../../services/storage/user_pacing_storage.dart';
 import '../../services/tts/gnani_tts_engine.dart';
@@ -28,6 +30,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
 
   late final GnaniTtsEngine _ttsEngine;
   late final PacingEngine _pacingEngine;
+  final AudioPlayer _spellingPlayer = AudioPlayer();
   DictationPlaybackController? _playbackController;
 
   bool _isEngineReady = false;
@@ -46,6 +49,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
 
   bool _showPacePrompt = false;
   bool _isLogsExpanded = false;
+  bool _spellDifficultWords = true;
 
   DictationPlaybackState _playbackState = DictationPlaybackState.idle;
   final List<DictationSessionLog> _logs = [];
@@ -89,9 +93,9 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
     _ttsEngine = GnaniTtsEngine();
     _pacingEngine = PacingEngine(config: PacingConfig.defaultConfig);
 
-    // Apply writer-friendly defaults: slower speech rate for dictation, tight gaps (max 7s)
-    _pacingEngine.gnaniSpeechRate = 0.85; // Slower clear speech for dictation
-    _pacingEngine.maxGapSeconds = 7.0;    // Human gap between phrases (never 30-50s)
+    // Apply writer-friendly defaults: slow speech rate for dictation, tight gaps (max 6s)
+    _pacingEngine.gnaniSpeechRate = 0.80; // Slower clear speech for dictation
+    _pacingEngine.maxGapSeconds = 6.0;    // Human gap between phrases (never 30-50s)
     _pacingEngine.userLpm = 90.0;         // Natural student writing speed
 
     // Load saved user profile if calibrated
@@ -113,6 +117,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
       voice: _currentVoice,
       language: _currentLanguage,
       enablePrefetch: true,
+      spellDifficultWords: _spellDifficultWords,
     );
 
     _stateSub = _playbackController!.onStateChanged.listen((state) {
@@ -175,6 +180,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
     _gapProgressNotifier.dispose();
     _gapRemainingNotifier.dispose();
     _playbackController?.dispose();
+    _spellingPlayer.dispose();
     _ttsEngine.dispose();
     _textController.dispose();
     super.dispose();
@@ -218,6 +224,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
   }
 
   void _copySessionLogsToClipboard() {
+    HapticFeedback.lightImpact();
     if (_logs.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No session logs to copy yet.')),
@@ -230,6 +237,29 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Copied ${_logs.length} chunk log rows (Markdown)!')),
     );
+  }
+
+  Future<void> _speakSingleSpelling(String word) async {
+    HapticFeedback.lightImpact();
+    final speller = _playbackController?.wordSpeller ?? const WordSpeller();
+    final spoken = speller.formatSpellingForSpeech(word);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Spelling: $word (${speller.formatSpellingForDisplay(word)})'),
+        duration: const Duration(milliseconds: 2000),
+      ),
+    );
+    try {
+      final audio = await _ttsEngine.synthesize(
+        spoken,
+        voice: _currentVoice,
+        language: _currentLanguage,
+        speed: _pacingEngine.gnaniSpeechRate,
+      );
+      if (audio.audioFilePath != null) {
+        await _spellingPlayer.play(DeviceFileSource(audio.audioFilePath!));
+      }
+    } catch (_) {}
   }
 
   void _openCalibrationScreen() {
@@ -542,6 +572,114 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                           ),
                         ),
                       ),
+
+                      // Catchy Difficult Word Spelling Badges
+                      if (_currentChunk != null && _spellDifficultWords) ...[
+                        Builder(
+                          builder: (context) {
+                            final speller = _playbackController?.wordSpeller ?? const WordSpeller();
+                            final diffWords = speller.findDifficultWords(_currentChunk!.text);
+                            if (diffWords.isEmpty) return const SizedBox.shrink();
+                            return Container(
+                              margin: const EdgeInsets.only(top: 14),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.spellcheck, size: 14, color: Color(0xFF2563EB)),
+                                      const SizedBox(width: 6),
+                                      const Text(
+                                        'DIFFICULT WORDS SPELLED OUT',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: 0.8,
+                                          color: Color(0xFF1E40AF),
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      Text(
+                                        '${diffWords.length} ${diffWords.length == 1 ? 'word' : 'words'}',
+                                        style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: diffWords.map((word) {
+                                      final displaySpelling = speller.formatSpellingForDisplay(word);
+                                      return Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(color: const Color(0xFFCBD5E1)),
+                                          boxShadow: const [
+                                            BoxShadow(
+                                              color: Color(0x08000000),
+                                              blurRadius: 4,
+                                              offset: Offset(0, 1),
+                                            ),
+                                          ],
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              word,
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w700,
+                                                color: Color(0xFF0F172A),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFFEFF6FF),
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: Text(
+                                                displaySpelling,
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                  fontFamily: 'monospace',
+                                                  fontWeight: FontWeight.w700,
+                                                  color: Color(0xFF1D4ED8),
+                                                  letterSpacing: 0.6,
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            InkWell(
+                                              onTap: () => _speakSingleSpelling(word),
+                                              borderRadius: BorderRadius.circular(12),
+                                              child: const Padding(
+                                                padding: EdgeInsets.all(2),
+                                                child: Icon(Icons.volume_up_rounded, size: 15, color: Color(0xFF2563EB)),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ],
                       const SizedBox(height: 18),
 
                       // Writing Countdown & Instant Advance Moment (Smooth, Jitter-Free)
@@ -549,20 +687,21 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                         _SmoothGapCountdown(
                           progressNotifier: _gapProgressNotifier,
                           remainingNotifier: _gapRemainingNotifier,
-                          onDone: () => _playbackController?.skipGap(),
+                          onDone: () {
+                            HapticFeedback.lightImpact();
+                            _playbackController?.skipGap();
+                          },
                         ),
                       ] else if (isPlaying) ...[
                         Row(
                           children: [
-                            const SizedBox(
-                              width: 12,
-                              height: 12,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF10B981)),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Speaking aloud at ${_pacingEngine.gnaniSpeechRate.toStringAsFixed(2)}x dictation speed...',
-                              style: const TextStyle(fontSize: 12, color: Color(0xFF059669), fontWeight: FontWeight.w500),
+                            const _CatchyAudioVisualizer(),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Speaking phrase at ${_pacingEngine.gnaniSpeechRate.toStringAsFixed(2)}x dictation cadence...',
+                                style: const TextStyle(fontSize: 12, color: Color(0xFF059669), fontWeight: FontWeight.w600),
+                              ),
                             ),
                           ],
                         ),
@@ -600,11 +739,8 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
 
   /// Direct quick controls for speech speed and gap pause length
   Widget _buildQuickPacingSettingsBar() {
-    final speechRate = _pacingEngine.gnaniSpeechRate;
-    final maxGap = _pacingEngine.maxGapSeconds;
-
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -619,14 +755,16 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
               const SizedBox(width: 6),
               const Text('Voice Speed:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF475569))),
               const Spacer(),
-              _buildSpeedPill(0.85, '0.85x (Slower)'),
+              _buildSpeedPill(0.80, '0.80x (Slow)'),
+              const SizedBox(width: 6),
+              _buildSpeedPill(0.85, '0.85x'),
               const SizedBox(width: 6),
               _buildSpeedPill(0.92, '0.92x'),
               const SizedBox(width: 6),
               _buildSpeedPill(1.00, '1.00x'),
             ],
           ),
-          const Divider(height: 14, color: Color(0xFFF1F5F9)),
+          const Divider(height: 16, color: Color(0xFFF1F5F9)),
           // Gap Pause Length Row (Gap between parts needs to be less)
           Row(
             children: [
@@ -636,9 +774,44 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
               const Spacer(),
               _buildGapPill(4.0, 'Tight (4s)'),
               const SizedBox(width: 6),
-              _buildGapPill(7.0, 'Normal (7s)'),
+              _buildGapPill(6.0, 'Normal (6s)'),
               const SizedBox(width: 6),
-              _buildGapPill(11.0, 'Relaxed (11s)'),
+              _buildGapPill(8.0, 'Relaxed (8s)'),
+            ],
+          ),
+          const Divider(height: 16, color: Color(0xFFF1F5F9)),
+          // Difficult Words Spelling Toggle
+          Row(
+            children: [
+              const Icon(Icons.spellcheck, size: 14, color: Color(0xFF2563EB)),
+              const SizedBox(width: 6),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Spell Difficult Words',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+                    ),
+                    Text(
+                      'Spells out words with ≥7 letters letter-by-letter',
+                      style: TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+                    ),
+                  ],
+                ),
+              ),
+              Switch.adaptive(
+                value: _spellDifficultWords,
+                activeColor: const Color(0xFF2563EB),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                onChanged: (val) {
+                  HapticFeedback.lightImpact();
+                  setState(() {
+                    _spellDifficultWords = val;
+                    _playbackController?.spellDifficultWords = val;
+                  });
+                },
+              ),
             ],
           ),
         ],
@@ -650,6 +823,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
     final isSelected = (_pacingEngine.gnaniSpeechRate - rate).abs() < 0.03;
     return InkWell(
       onTap: () {
+        HapticFeedback.lightImpact();
         setState(() {
           _pacingEngine.gnaniSpeechRate = rate;
         });
@@ -677,6 +851,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
     final isSelected = (_pacingEngine.maxGapSeconds - maxGap).abs() < 0.5;
     return InkWell(
       onTap: () {
+        HapticFeedback.lightImpact();
         setState(() {
           _pacingEngine.maxGapSeconds = maxGap;
         });
@@ -718,7 +893,10 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
               IconButton.outlined(
                 icon: const Icon(Icons.replay_10, size: 22),
                 tooltip: 'Rewind to previous chunk',
-                onPressed: () => _playbackController?.previousChunk(),
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  _playbackController?.previousChunk();
+                },
                 style: IconButton.styleFrom(
                   side: const BorderSide(color: Color(0xFFCBD5E1)),
                   padding: const EdgeInsets.all(12),
@@ -755,6 +933,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
               onPressed: (isPreparing || !_isEngineReady)
                   ? null
                   : () {
+                      HapticFeedback.lightImpact();
                       if (isPlaying || isGap) {
                         _playbackController?.pause();
                       } else if (isPaused) {
@@ -770,7 +949,10 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
               IconButton.outlined(
                 icon: const Icon(Icons.stop, color: Color(0xFFEF4444), size: 22),
                 tooltip: 'Stop Dictation',
-                onPressed: () => _playbackController?.stop(),
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  _playbackController?.stop();
+                },
                 style: IconButton.styleFrom(
                   side: const BorderSide(color: Color(0xFFFECACA)),
                   padding: const EdgeInsets.all(12),
@@ -789,7 +971,10 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
               _buildTactilePillButton(
                 icon: Icons.replay,
                 label: 'Repeat',
-                onPressed: () => _playbackController?.repeatCurrentChunk(),
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  _playbackController?.repeatCurrentChunk();
+                },
               ),
               const SizedBox(width: 8),
               _buildTactilePillButton(
@@ -797,6 +982,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                 label: 'Slower',
                 tooltip: 'Lower writing speed (gives more gap time)',
                 onPressed: () {
+                  HapticFeedback.lightImpact();
                   _playbackController?.slower();
                   setState(() {});
                 },
@@ -807,6 +993,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                 label: 'Faster',
                 tooltip: 'Raise writing speed (tightens gaps)',
                 onPressed: () {
+                  HapticFeedback.lightImpact();
                   _playbackController?.faster();
                   setState(() {});
                 },
@@ -1288,6 +1475,76 @@ class _SmoothGapCountdown extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Catchy, Smooth Audio Equalizer Bars animation for active speech playback.
+class _CatchyAudioVisualizer extends StatefulWidget {
+  const _CatchyAudioVisualizer();
+
+  @override
+  State<_CatchyAudioVisualizer> createState() => _CatchyAudioVisualizerState();
+}
+
+class _CatchyAudioVisualizerState extends State<_CatchyAudioVisualizer>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void disposeBack() {
+    _controller.dispose();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        final t = _controller.value;
+        final heights = [
+          7.0 + 10.0 * t,
+          15.0 - 8.0 * t,
+          9.0 + 12.0 * ((t + 0.4) % 1.0),
+          16.0 - 10.0 * ((t + 0.2) % 1.0),
+          10.0 + 7.0 * ((t + 0.7) % 1.0),
+        ];
+
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: List.generate(5, (index) {
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 1.5),
+              width: 3.2,
+              height: heights[index].clamp(5.0, 18.0),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(2),
+                gradient: const LinearGradient(
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
+                  colors: [Color(0xFF059669), Color(0xFF34D399)],
+                ),
+              ),
+            );
+          }),
+        );
+      },
     );
   }
 }

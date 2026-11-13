@@ -205,6 +205,13 @@ void main() {
       );
     });
 
+    test('prependWavSilence adds 600ms silence buffer by default to eliminate hardware audio clipping', () {
+      final originalWav = createMockWavBytes(sampleRate: 16000, numSamples: 16000);
+      final withSilence = GnaniTtsEngine.prependWavSilence(originalWav, sampleRate: 16000);
+      // 600ms at 16kHz 16-bit mono = 9600 samples = 19200 bytes
+      expect(withSilence.length, originalWav.length + 19200);
+    });
+
     test('prependWavSilence adds 250ms silence buffer to eliminate hardware audio clipping', () {
       final originalWav = createMockWavBytes(sampleRate: 16000, numSamples: 16000); // 1.0s audio
       expect(originalWav.length, 44 + 32000);

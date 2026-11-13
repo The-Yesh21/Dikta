@@ -222,7 +222,7 @@ class GnaniTtsEngine implements VoiceEngine {
 
     if (statusCode == 200) {
       final wavBytes = Uint8List.fromList(responseBodyBytes);
-      return prependWavSilence(wavBytes, sampleRate: config.defaultSampleRate, leadingSilenceMs: 250);
+      return prependWavSilence(wavBytes, sampleRate: config.defaultSampleRate, leadingSilenceMs: 600);
     }
 
     // Decode error body
@@ -293,7 +293,7 @@ class GnaniTtsEngine implements VoiceEngine {
   static Uint8List prependWavSilence(
     Uint8List bytes, {
     int sampleRate = 16000,
-    int leadingSilenceMs = 250,
+    int leadingSilenceMs = 600,
   }) {
     if (bytes.length < 44 || leadingSilenceMs <= 0) {
       return normalizeWavHeader(bytes);

@@ -45,7 +45,7 @@ class GnaniChunkCache {
   }) {
     final normalizedText = text.trim();
     final speedStr = speed.toStringAsFixed(2);
-    final raw = '${language.toLowerCase()}|${model.toLowerCase()}|${voice.toLowerCase()}|$speedStr|$normalizedText';
+    final raw = 'v3_s600|${language.toLowerCase()}|${model.toLowerCase()}|${voice.toLowerCase()}|$speedStr|$normalizedText';
     final bytes = utf8.encode(raw);
     
     // Simple 64-bit FNV-1a hash + length for collision resistance without external crypto package
