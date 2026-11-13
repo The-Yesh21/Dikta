@@ -18,13 +18,13 @@ enum PacingSignalType {
   /// User requested faster dictation.
   faster,
 
-  /// In-session prompt response: "Too slow" (pace is too slow, user needs more time).
+  /// In-session prompt response: "Too slow" (dictation pace is too slow, speed up / shorter gaps).
   promptTooSlow,
 
   /// In-session prompt response: "Just right".
   promptJustRight,
 
-  /// In-session prompt response: "Too fast" (pace is too fast, user writes faster).
+  /// In-session prompt response: "Too fast" (dictation pace is too fast, slow down / longer gaps).
   promptTooFast,
 
   /// Full silence gap elapsed with no user intervention (about right).

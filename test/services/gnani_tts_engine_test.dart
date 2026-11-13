@@ -204,5 +204,59 @@ void main() {
         throwsA(isA<GnaniAuthException>()),
       );
     });
+
+    test('prependWavSilence adds 250ms silence buffer to eliminate hardware audio clipping', () {
+      final originalWav = createMockWavBytes(sampleRate: 16000, numSamples: 16000); // 1.0s audio
+      expect(originalWav.length, 44 + 32000);
+
+      final withSilence = GnaniTtsEngine.prependWavSilence(
+        originalWav,
+        sampleRate: 16000,
+        leadingSilenceMs: 250,
+      );
+
+      // 250ms at 16kHz 16-bit mono = 4000 samples = 8000 bytes
+      expect(withSilence.length, originalWav.length + 8000);
+
+      // Verify RIFF header chunk sizes
+      final byteData = ByteData.sublistView(withSilence);
+      final riffSize = byteData.getUint32(4, Endian.little);
+      final dataSize = byteData.getUint32(40, Endian.little);
+      expect(riffSize, withSilence.length - 8);
+      expect(dataSize, withSilence.length - 44);
+
+      // Verify first 8000 bytes of audio payload are zeros (silence)
+      for (var i = 44; i < 44 + 8000; i++) {
+        expect(withSilence[i], 0);
+      }
+    });
+
+    test('in-memory cache returns cached audio immediately on repeat', () async {
+      final mockWav = createMockWavBytes(sampleRate: 24000, numSamples: 24000);
+      await cache.saveCachedAudio(
+        text: 'Repeated sentence',
+        wavBytes: mockWav,
+        voice: 'Shivani',
+        language: 'en-IN',
+        speed: 1.0,
+        model: 'timbre-v3.0',
+      );
+
+      final engine = GnaniTtsEngine(
+        apiKey: 'test-key',
+        cache: cache,
+      );
+
+      // First call (populates mem cache from disk)
+      final audio1 = await engine.synthesize('Repeated sentence', language: 'en-IN', voice: 'Shivani');
+      expect(audio1.isFromCache, isTrue);
+
+      // Delete disk file to prove second call is served directly from mem cache
+      await cache.clear();
+
+      final audio2 = await engine.synthesize('Repeated sentence', language: 'en-IN', voice: 'Shivani');
+      expect(audio2.isFromCache, isTrue);
+      expect(audio2.durationSeconds, audio1.durationSeconds);
+    });
   });
 }

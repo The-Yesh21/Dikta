@@ -193,6 +193,7 @@ class DictationPlaybackController {
     TempAudioFileManager? tempFileManager,
     PacingFeedbackLoop? feedbackLoop,
     UserPacingStorageService? storageService,
+    this.enablePrefetch = false,
   })  : _speakerId = speakerId ?? config.defaultSpeakerId,
         _voice = voice,
         _language = language,
@@ -208,6 +209,7 @@ class DictationPlaybackController {
   final TempAudioFileManager _tempFileManager;
   final PacingFeedbackLoop feedbackLoop;
   final UserPacingStorageService storageService;
+  final bool enablePrefetch;
 
   int _speakerId;
   int get speakerId => _speakerId;
@@ -288,6 +290,7 @@ class DictationPlaybackController {
     _errorMessage = null;
     _errorController.add(null);
     _sessionLogs.clear();
+    pacingEngine.reset();
 
     await _runPlaybackLoop();
   }
@@ -438,6 +441,7 @@ class DictationPlaybackController {
 
       try {
         await _audioPlayer.play(playFilePath);
+        _prefetchNextChunk();
         await playCompleter.future;
       } catch (e) {
         safetyTimer.cancel();
@@ -669,6 +673,28 @@ class DictationPlaybackController {
     _currentGapRemaining = Duration.zero;
     _currentGapProgress = 0.0;
     _transitionTo(DictationPlaybackState.idle);
+  }
+
+  /// Background lookahead synthesis of the upcoming chunk.
+  /// Pre-caches to memory and disk so upcoming chunks play without network wait.
+  void _prefetchNextChunk() {
+    if (!enablePrefetch) return;
+    final nextIdx = _currentChunkIndex + 1;
+    if (nextIdx < _chunks.length && !_isStopRequested) {
+      final nextChunk = _chunks[nextIdx];
+      final baseRate = _voice != null ? pacingEngine.gnaniSpeechRate : config.kokoroSpeed;
+      final speed = pacingEngine.calculateChunkVoiceSpeed(nextChunk, baseRate: baseRate);
+      voiceEngine.synthesize(
+        nextChunk.text,
+        speakerId: _speakerId,
+        voice: _voice,
+        language: _language,
+        speed: speed,
+      ).catchError((_) {
+        // Ignored in prefetch; sequential loop handles errors if persistent
+        return const GeneratedAudio(durationSeconds: 0, sampleRate: 16000);
+      });
+    }
   }
 
   void _transitionTo(DictationPlaybackState newState) {

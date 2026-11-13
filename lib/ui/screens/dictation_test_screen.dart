@@ -8,12 +8,14 @@ import '../../core/chunker/text_chunker.dart';
 import '../../core/pacing/pacing_engine.dart';
 import '../../core/pacing/pacing_feedback_loop.dart';
 import '../../services/audio/dictation_playback_controller.dart';
+import '../../services/storage/user_pacing_storage.dart';
 import '../../services/tts/gnani_tts_engine.dart';
 import 'live_tuning_panel.dart';
 import 'voice_audition_screen.dart';
 import 'writing_calibration_screen.dart';
 
-/// Test screen for Dictation App: Cloud-first MVP using Gnani Cloud TTS & Grapheme Pacing.
+/// Dictation App: Cloud-first MVP using Gnani Cloud TTS & Adaptive Grapheme Pacing.
+/// Redesigned using the Unslop craft framework: calm, exact, notebook-inspired interface.
 class DictationTestScreen extends StatefulWidget {
   const DictationTestScreen({super.key});
 
@@ -21,7 +23,7 @@ class DictationTestScreen extends StatefulWidget {
   State<DictationTestScreen> createState() => _DictationTestScreenState();
 }
 
-class _DictationTestScreenState extends State<DictationTestScreen> {
+class _DictationTestScreenState extends State<DictationTestScreen> with SingleTickerProviderStateMixin {
   final TextEditingController _textController = TextEditingController();
 
   late final GnaniTtsEngine _ttsEngine;
@@ -29,9 +31,9 @@ class _DictationTestScreenState extends State<DictationTestScreen> {
   DictationPlaybackController? _playbackController;
 
   bool _isEngineReady = false;
-  String _statusMessage = 'Initializing Gnani Cloud TTS...';
+  String _statusMessage = 'Connecting Gnani Cloud...';
 
-  // State subscriptions
+  // Subscriptions
   StreamSubscription<DictationPlaybackState>? _stateSub;
   StreamSubscription<DictationSessionLog>? _logSub;
   StreamSubscription<Duration>? _gapSub;
@@ -39,6 +41,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> {
   StreamSubscription<bool>? _pacePromptSub;
 
   bool _showPacePrompt = false;
+  bool _isLogsExpanded = false;
 
   DictationPlaybackState _playbackState = DictationPlaybackState.idle;
   final List<DictationSessionLog> _logs = [];
@@ -55,19 +58,19 @@ class _DictationTestScreenState extends State<DictationTestScreen> {
   static const List<Map<String, String>> sampleTexts = [
     {
       'lang': 'en-IN',
-      'title': 'English: Mitochondria (Biology)',
+      'title': 'English · Mitochondria',
       'text':
           'Mitochondria are membrane-bound cell organelles that generate most of the chemical energy needed to power the biochemical reactions of the cell. Chemical energy produced by the mitochondria is stored in a small molecule called ATP.',
     },
     {
       'lang': 'hi-IN',
-      'title': 'Hindi: प्रकाश संश्लेषण (Biology)',
+      'title': 'Hindi · प्रकाश संश्लेषण',
       'text':
           'प्रकाश संश्लेषण एक ऐसी जैविक प्रक्रिया है जिसके द्वारा हरे पौधे सूर्य के प्रकाश की ऊर्जा को रासायनिक ऊर्जा में परिवर्तित करते हैं। इस प्रक्रिया में पौधे वायुमंडल से कार्बन डाइऑक्साइड और मिट्टी से जल अवशोषित करते हैं।',
     },
     {
       'lang': 'kn-IN',
-      'title': 'Kannada: ದ್ಯುತಿಸಂಶ್ಲೇಷಣೆ (Biology)',
+      'title': 'Kannada · ದ್ಯುತಿಸಂಶ್ಲೇಷಣೆ',
       'text':
           'ದ್ಯುತಿಸಂಶ್ಲೇಷಣೆಯು ಸಸ್ಯಗಳು ಸೂರ್ಯನ ಬೆಳಕು, ನೀರು ಮತ್ತು ಇಂಗಾಲದ ಡೈಆಕ್ಸೈಡ್ ಅನ್ನು ಬಳಸಿಕೊಂಡು ತಮ್ಮ ಆಹಾರವನ್ನು ತಾವೇ ತಯಾರಿಸಿಕೊಳ್ಳುವ ಒಂದು ಅದ್ಭುತ ಜೈವಿಕ ಪ್ರಕ್ರಿಯೆಯಾಗಿದೆ. ಈ ಕ್ರಿಯೆಯು ಹರಿದ್ರೇಣುವಿನ ಕ್ಲೋರೋಫಿಲ್ ವರ್ಣದ್ರವ್ಯದ ಸಹಾಯದಿಂದ ಜರುಗುತ್ತದೆ.',
     },
@@ -80,15 +83,29 @@ class _DictationTestScreenState extends State<DictationTestScreen> {
     _initEngine();
   }
 
-  void _initEngine() {
+  Future<void> _initEngine() async {
     _ttsEngine = GnaniTtsEngine();
     _pacingEngine = PacingEngine(config: PacingConfig.defaultConfig);
+
+    // Load saved user profile if calibrated
+    try {
+      final storage = UserPacingStorageService();
+      final profile = await storage.getProfile();
+      if (profile != null) {
+        final script = PacingEngine.detectScript('', languageCode: _currentLanguage);
+        final savedLpm = profile.calibratedLpm[script];
+        if (savedLpm != null && savedLpm > 0) {
+          _pacingEngine.userLpm = savedLpm;
+        }
+      }
+    } catch (_) {}
 
     _playbackController = DictationPlaybackController(
       voiceEngine: _ttsEngine,
       pacingEngine: _pacingEngine,
       voice: _currentVoice,
       language: _currentLanguage,
+      enablePrefetch: true,
     );
 
     _stateSub = _playbackController!.onStateChanged.listen((state) {
@@ -136,7 +153,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> {
 
     setState(() {
       _isEngineReady = true;
-      _statusMessage = 'Gnani Cloud TTS Ready';
+      _statusMessage = 'Gnani Cloud Engine Ready';
     });
   }
 
@@ -201,7 +218,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> {
     final table = DictationSessionLog.formatSessionTableMarkdown(_logs.reversed.toList());
     Clipboard.setData(ClipboardData(text: table));
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Copied ${_logs.length} chunk log rows to clipboard (Markdown)!')),
+      SnackBar(content: Text('Copied ${_logs.length} chunk log rows (Markdown)!')),
     );
   }
 
@@ -212,15 +229,20 @@ class _DictationTestScreenState extends State<DictationTestScreen> {
         builder: (context) => WritingCalibrationScreen(
           language: _currentLanguage,
           voiceEngine: _ttsEngine,
-          onSpeedCalibrated: (script, secPerGrapheme) {
-            _pacingEngine.setSecondsPerGrapheme(script, secPerGrapheme);
+          onLpmCalibrated: (script, lpm) {
+            _pacingEngine.userLpm = lpm;
+            _playbackController?.feedbackLoop.reset(newInitialLpm: lpm);
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  'Set ${script.name.toUpperCase()} writing speed to ${secPerGrapheme.toStringAsFixed(3)} s/grapheme',
+                  'Set ${script.name.toUpperCase()} writing speed to ${lpm.toStringAsFixed(1)} LPM',
                 ),
               ),
             );
+            setState(() {});
+          },
+          onSpeedCalibrated: (script, secPerGrapheme) {
+            _pacingEngine.setSecondsPerGrapheme(script, secPerGrapheme);
             setState(() {});
           },
         ),
@@ -242,24 +264,57 @@ class _DictationTestScreenState extends State<DictationTestScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Ink & Paper Palette (Unslop)
+    const backgroundParchment = Color(0xFFFBF9F5);
+    const inkSlate = Color(0xFF0F172A);
+    const inkMuted = Color(0xFF64748B);
+    const hairlineBorder = Color(0xFFE2E8F0);
+
     return Scaffold(
+      backgroundColor: backgroundParchment,
       appBar: AppBar(
-        title: const Text('Dictation Cloud MVP (Gnani)'),
-        backgroundColor: Colors.teal,
-        foregroundColor: Colors.white,
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Dikta',
+              style: TextStyle(
+                fontFamily: 'serif',
+                fontWeight: FontWeight.w700,
+                fontSize: 20,
+                color: inkSlate,
+                letterSpacing: -0.5,
+              ),
+            ),
+            Text(
+              'Handwriting Dictation Companion',
+              style: TextStyle(
+                fontSize: 11,
+                color: inkMuted,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(color: hairlineBorder, height: 1),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.edit_note),
+            icon: const Icon(Icons.edit_note, color: inkSlate),
             tooltip: 'Calibrate Handwriting Speed',
             onPressed: _openCalibrationScreen,
           ),
           IconButton(
-            icon: const Icon(Icons.tune),
+            icon: const Icon(Icons.tune, color: inkSlate),
             tooltip: 'Live Tuning Panel',
             onPressed: _openLiveTuningPanel,
           ),
           IconButton(
-            icon: const Icon(Icons.record_voice_over),
+            icon: const Icon(Icons.record_voice_over_outlined, color: inkSlate),
             tooltip: 'Audition Voices',
             onPressed: () {
               Navigator.push(
@@ -285,26 +340,20 @@ class _DictationTestScreenState extends State<DictationTestScreen> {
       ),
       body: Column(
         children: [
-          _buildStatusBar(),
-          if (_errorMessage != null) _buildErrorCard(),
+          _buildPacingStatusBar(),
+          if (_errorMessage != null) _buildErrorBanner(),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               children: [
-                _buildLanguageAndVoiceSelector(),
-                const SizedBox(height: 12),
-                _buildQuickTuningRow(),
-                const SizedBox(height: 12),
-                _buildSampleTextChips(),
-                const SizedBox(height: 12),
-                _buildTextInput(),
+                _buildActiveDictationCard(),
                 const SizedBox(height: 16),
-                _buildControls(),
+                _buildControlsSection(),
                 const SizedBox(height: 16),
                 _buildPacePromptCard(),
-                _buildCurrentChunkStatus(),
+                _buildLanguageAndNoteSection(),
                 const SizedBox(height: 16),
-                _buildSessionLogList(),
+                _buildSessionLogSection(),
               ],
             ),
           ),
@@ -313,458 +362,392 @@ class _DictationTestScreenState extends State<DictationTestScreen> {
     );
   }
 
-  Widget _buildStatusBar() {
+  /// Calm, high-craft status bar showing engine state and adaptive LPM
+  Widget _buildPacingStatusBar() {
     final isLocked = _playbackController?.feedbackLoop.isLocked ?? false;
     final currentAlpha = _playbackController?.feedbackLoop.currentAlpha ?? 0.25;
     final userLpm = _pacingEngine.userLpm;
 
     return Container(
       width: double.infinity,
-      color: Colors.teal.shade50,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          const Icon(Icons.cloud_done, color: Colors.teal, size: 20),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Wrap(
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 8,
-              children: [
-                Text(
-                  _statusMessage,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.teal),
-                ),
-                if (isLocked)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.green.shade100,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.green.shade700),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.lock, size: 12, color: Colors.green),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Pace locked (${userLpm.toStringAsFixed(1)} LPM)',
-                          style: TextStyle(
-                            color: Colors.green.shade900,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                else
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.blue.shade300),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.sync, size: 12, color: Colors.blue),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Adapting: ${userLpm.toStringAsFixed(1)} LPM (α=${currentAlpha.toStringAsFixed(2)})',
-                          style: TextStyle(
-                            color: Colors.blue.shade900,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          TextButton.icon(
-            icon: const Icon(Icons.edit, size: 16),
-            label: const Text('Calibrate', style: TextStyle(fontSize: 12)),
-            onPressed: _openCalibrationScreen,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPacePromptCard() {
-    if (!_showPacePrompt) return const SizedBox.shrink();
-
-    return Card(
-      elevation: 3,
-      margin: const EdgeInsets.only(bottom: 16),
-      color: Colors.indigo.shade50,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.indigo.shade200, width: 1.5),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.speed, color: Colors.indigo, size: 20),
-                const SizedBox(width: 8),
-                const Expanded(
-                  child: Text(
-                    'Pace OK? How is the dictation speed for your writing?',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.indigo),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close, size: 18),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  onPressed: () => setState(() => _showPacePrompt = false),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.arrow_downward, size: 16, color: Colors.deepOrange),
-                  label: const Text('Too slow', style: TextStyle(fontSize: 12)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.deepOrange,
-                    side: const BorderSide(color: Colors.deepOrange),
-                  ),
-                  onPressed: () {
-                    _playbackController?.submitPaceFeedback(PacingSignalType.promptTooSlow);
-                    setState(() => _showPacePrompt = false);
-                  },
-                ),
-                FilledButton.tonalIcon(
-                  icon: const Icon(Icons.check, size: 16, color: Colors.teal),
-                  label: const Text('Just right', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.teal.shade100,
-                    foregroundColor: Colors.teal.shade900,
-                  ),
-                  onPressed: () {
-                    _playbackController?.submitPaceFeedback(PacingSignalType.promptJustRight);
-                    setState(() => _showPacePrompt = false);
-                  },
-                ),
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.arrow_upward, size: 16, color: Colors.indigo),
-                  label: const Text('Too fast', style: TextStyle(fontSize: 12)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.indigo,
-                    side: const BorderSide(color: Colors.indigo),
-                  ),
-                  onPressed: () {
-                    _playbackController?.submitPaceFeedback(PacingSignalType.promptTooFast);
-                    setState(() => _showPacePrompt = false);
-                  },
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildErrorCard() {
-    return Container(
-      width: double.infinity,
-      color: Colors.red.shade100,
+      color: Colors.white,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Icon(Icons.error_outline, color: Colors.red, size: 24),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _playbackState == DictationPlaybackState.playingChunk
+                      ? const Color(0xFF10B981)
+                      : _playbackState == DictationPlaybackState.waitingGap
+                          ? const Color(0xFF3B82F6)
+                          : const Color(0xFF64748B),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                _playbackState == DictationPlaybackState.playingChunk
+                    ? 'Speaking chunk'
+                    : _playbackState == DictationPlaybackState.waitingGap
+                        ? 'Writing pause'
+                        : _playbackState == DictationPlaybackState.preparing
+                            ? 'Preparing audio'
+                            : 'Ready',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF334155),
+                ),
+              ),
+            ],
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: isLocked ? const Color(0xFFECFDF5) : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isLocked ? const Color(0xFFA7F3D0) : const Color(0xFFCBD5E1),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('Playback Error (Chunk preserved)',
-                    style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                Text(_errorMessage!, style: const TextStyle(color: Colors.black87, fontSize: 12)),
+                Icon(
+                  isLocked ? Icons.lock_outline : Icons.speed,
+                  size: 13,
+                  color: isLocked ? const Color(0xFF047857) : const Color(0xFF475569),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  isLocked
+                      ? '${userLpm.toStringAsFixed(0)} LPM · Locked'
+                      : '${userLpm.toStringAsFixed(0)} LPM · α=${currentAlpha.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: isLocked ? const Color(0xFF047857) : const Color(0xFF334155),
+                  ),
+                ),
               ],
             ),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            ),
-            onPressed: () => _playbackController?.retryCurrentChunk(),
-            child: const Text('Retry'),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildLanguageAndVoiceSelector() {
-    final voices = GnaniVoiceCatalog.getVoicesForLanguage(_currentLanguage);
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Language & Cloud Voice', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _currentLanguage,
-                    decoration: const InputDecoration(
-                      labelText: 'Language',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'en-IN', child: Text('English (en-IN)')),
-                      DropdownMenuItem(value: 'hi-IN', child: Text('Hindi (hi-IN)')),
-                      DropdownMenuItem(value: 'kn-IN', child: Text('Kannada (kn-IN)')),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) _onLanguageChanged(val);
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: voices.any((v) => v.name == _currentVoice) ? _currentVoice : voices.first.name,
-                    decoration: const InputDecoration(
-                      labelText: 'Voice',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    items: voices.map((v) {
-                      return DropdownMenuItem<String>(
-                        value: v.name,
-                        child: Text(
-                          '${v.name} (${v.gender[0]} • ${v.model.split('-').last})',
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (val) {
-                      if (val != null) {
-                        setState(() {
-                          _currentVoice = val;
-                          _playbackController?.voice = val;
-                        });
-                      }
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildQuickTuningRow() {
-    final activeScript = PacingEngine.detectScript(_textController.text, languageCode: _currentLanguage);
-    final secPerGrapheme = _pacingEngine.getWritingSecondsPerGrapheme(script: activeScript);
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '${activeScript.name.toUpperCase()} Pace: ${secPerGrapheme.toStringAsFixed(2)}s / grapheme',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.tune, size: 16),
-                  label: const Text('Live Tuning', style: TextStyle(fontSize: 12)),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  onPressed: _openLiveTuningPanel,
-                ),
-              ],
-            ),
-            Slider(
-              value: secPerGrapheme.clamp(0.12, 1.20),
-              min: 0.12,
-              max: 1.20,
-              divisions: 54,
-              activeColor: Colors.teal,
-              label: '${secPerGrapheme.toStringAsFixed(2)} s/gr',
-              onChanged: (val) {
-                setState(() {
-                  _pacingEngine.setSecondsPerGrapheme(activeScript, val);
-                });
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSampleTextChips() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: sampleTexts.map((sample) {
-          final isSelected = _textController.text == sample['text'];
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: Text(sample['title']!),
-              selected: isSelected,
-              onSelected: (selected) {
-                if (selected) {
-                  _onLanguageChanged(sample['lang']!);
-                  _textController.text = sample['text']!;
-                }
-              },
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildTextInput() {
-    return TextField(
-      controller: _textController,
-      maxLines: 4,
-      decoration: InputDecoration(
-        labelText: 'Text to Dictate',
-        hintText: 'Enter text here...',
-        border: const OutlineInputBorder(),
-        suffixIcon: IconButton(
-          icon: const Icon(Icons.clear),
-          onPressed: () => _textController.clear(),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildControls() {
+  /// The Hero Moment: Ruled Notebook Note Sheet for Dictation
+  Widget _buildActiveDictationCard() {
     final isPlaying = _playbackState == DictationPlaybackState.playingChunk;
     final isPreparing = _playbackState == DictationPlaybackState.preparing;
     final isGap = _playbackState == DictationPlaybackState.waitingGap;
     final isPaused = _playbackState == DictationPlaybackState.paused;
 
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: ElevatedButton.icon(
-                icon: Icon(
-                  isPlaying || isGap
-                      ? Icons.pause
-                      : isPaused
-                          ? Icons.play_arrow
-                          : Icons.record_voice_over,
-                ),
-                label: Text(
-                  isPlaying || isGap
-                      ? 'Pause'
-                      : isPaused
-                          ? 'Resume'
-                          : 'Start Dictation',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  backgroundColor: isPaused ? Colors.amber.shade800 : Colors.teal,
-                  foregroundColor: Colors.white,
-                ),
-                onPressed: (isPreparing || !_isEngineReady)
-                    ? null
-                    : () {
-                        if (isPlaying || isGap) {
-                          _playbackController?.pause();
-                        } else if (isPaused) {
-                          _playbackController?.resume();
-                        } else {
-                          _startPlayback();
-                        }
-                      },
+    final remainingSec = _remainingGap.inMilliseconds / 1000.0;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A000000),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Signature: Notebook Ruled Left Margin Indicator Line
+              Container(
+                width: 5,
+                color: isGap
+                    ? const Color(0xFF2563EB)
+                    : isPlaying
+                        ? const Color(0xFF10B981)
+                        : const Color(0xFFF43F5E).withOpacity(0.5),
               ),
-            ),
-            if (isGap) ...[
-              const SizedBox(width: 8),
-              Tooltip(
-                message: 'Skip remaining gap and adapt faster',
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.skip_next),
-                  label: const Text('Next', style: TextStyle(fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
-                    backgroundColor: Colors.teal.shade700,
-                    foregroundColor: Colors.white,
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Card Header Row: Progress & Boundary
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            _totalChunks > 0
+                                ? 'PHRASE ${_currentChunkIndex + 1} OF $_totalChunks'
+                                : 'DICTATION READY',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.0,
+                              color: Color(0xFF94A3B8),
+                            ),
+                          ),
+                          if (_currentChunk != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                              ),
+                              child: Text(
+                                '${PacingEngine.countGraphemes(_currentChunk!.text)} graphemes · ${_currentChunk!.boundaryType.name}',
+                                style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Spoken Phrase Text with Smooth Animated Transition
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        child: Text(
+                          _currentChunk?.text ?? 'Tap Start Dictation below to begin copying your notes.',
+                          key: ValueKey(_currentChunk?.text ?? 'idle'),
+                          style: TextStyle(
+                            fontSize: 21,
+                            fontWeight: FontWeight.w600,
+                            height: 1.45,
+                            color: _currentChunk != null ? const Color(0xFF0F172A) : const Color(0xFF94A3B8),
+                            fontFamily: 'serif',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+
+                      // Writing Countdown & Instant Advance Moment
+                      if (isGap) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0FDF4),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFBBF7D0)),
+                          ),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  value: (1.0 - _gapProgress).clamp(0.0, 1.0),
+                                  strokeWidth: 2.5,
+                                  backgroundColor: const Color(0xFFDCFCE7),
+                                  color: const Color(0xFF16A34A),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Copy now: ${remainingSec.toStringAsFixed(1)}s writing pause',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF166534),
+                                      ),
+                                    ),
+                                    const Text(
+                                      'Tap "Done" when finished to advance faster',
+                                      style: TextStyle(fontSize: 11, color: Color(0xFF15803D)),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              FilledButton(
+                                onPressed: () => _playbackController?.skipGap(),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: const Color(0xFF16A34A),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text('Done', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                    SizedBox(width: 4),
+                                    Icon(Icons.arrow_forward, size: 14),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ] else if (isPlaying) ...[
+                        Row(
+                          children: [
+                            const SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF10B981)),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Speaking aloud (${_currentVoice} · ${_currentLanguage})...',
+                              style: const TextStyle(fontSize: 12, color: Color(0xFF059669), fontWeight: FontWeight.w500),
+                            ),
+                          ],
+                        ),
+                      ] else if (isPreparing) ...[
+                        const Row(
+                          children: [
+                            SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF3B82F6)),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Synthesizing next phrase via Gnani...',
+                              style: TextStyle(fontSize: 12, color: Color(0xFF2563EB), fontWeight: FontWeight.w500),
+                            ),
+                          ],
+                        ),
+                      ] else if (isPaused) ...[
+                        const Text(
+                          'Playback paused',
+                          style: TextStyle(fontSize: 12, color: Color(0xFFD97706), fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ],
                   ),
-                  onPressed: () => _playbackController?.skipGap(),
                 ),
               ),
             ],
-            if (isPlaying || isPaused || isGap) ...[
-              const SizedBox(width: 8),
-              IconButton.filled(
-                icon: const Icon(Icons.stop),
-                style: IconButton.styleFrom(backgroundColor: Colors.red),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Quiet, tactile dictation controls
+  Widget _buildControlsSection() {
+    final isPlaying = _playbackState == DictationPlaybackState.playingChunk;
+    final isPreparing = _playbackState == DictationPlaybackState.preparing;
+    final isGap = _playbackState == DictationPlaybackState.waitingGap;
+    final isPaused = _playbackState == DictationPlaybackState.paused;
+    final isActive = isPlaying || isGap || isPaused || isPreparing;
+
+    return Column(
+      children: [
+        // Primary Play/Pause Row
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (isActive) ...[
+              IconButton.outlined(
+                icon: const Icon(Icons.replay_10, size: 22),
+                tooltip: 'Rewind to previous chunk',
+                onPressed: () => _playbackController?.previousChunk(),
+                style: IconButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFFCBD5E1)),
+                  padding: const EdgeInsets.all(12),
+                ),
+              ),
+              const SizedBox(width: 16),
+            ],
+
+            // Big Center Play/Pause Capsule
+            FilledButton.icon(
+              icon: Icon(
+                isPlaying || isGap
+                    ? Icons.pause
+                    : isPaused
+                        ? Icons.play_arrow
+                        : Icons.play_arrow,
+                size: 26,
+              ),
+              label: Text(
+                isPlaying || isGap
+                    ? 'Pause'
+                    : isPaused
+                        ? 'Resume'
+                        : 'Start Dictation',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF0F172A),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
+                elevation: 0,
+              ),
+              onPressed: (isPreparing || !_isEngineReady)
+                  ? null
+                  : () {
+                      if (isPlaying || isGap) {
+                        _playbackController?.pause();
+                      } else if (isPaused) {
+                        _playbackController?.resume();
+                      } else {
+                        _startPlayback();
+                      }
+                    },
+            ),
+
+            if (isActive) ...[
+              const SizedBox(width: 16),
+              IconButton.outlined(
+                icon: const Icon(Icons.stop, color: Color(0xFFEF4444), size: 22),
+                tooltip: 'Stop Dictation',
                 onPressed: () => _playbackController?.stop(),
+                style: IconButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFFFECACA)),
+                  padding: const EdgeInsets.all(12),
+                ),
               ),
             ],
           ],
         ),
-        if (isPlaying || isPaused || isGap) ...[
-          const SizedBox(height: 10),
+
+        // Secondary Voice Command Fallback Buttons (Back, Repeat, Slower, Faster)
+        if (isActive) ...[
+          const SizedBox(height: 12),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              TextButton.icon(
-                icon: const Icon(Icons.fast_rewind),
-                label: const Text('Back'),
-                onPressed: () => _playbackController?.previousChunk(),
-              ),
-              TextButton.icon(
-                icon: const Icon(Icons.replay),
-                label: const Text('Repeat'),
+              _buildTactilePillButton(
+                icon: Icons.replay,
+                label: 'Repeat',
                 onPressed: () => _playbackController?.repeatCurrentChunk(),
               ),
-              TextButton.icon(
-                icon: const Icon(Icons.slow_motion_video),
-                label: const Text('Slower'),
+              const SizedBox(width: 8),
+              _buildTactilePillButton(
+                icon: Icons.remove,
+                label: 'Slower',
+                tooltip: 'Lower writing speed (gives more gap time)',
                 onPressed: () {
                   _playbackController?.slower();
                   setState(() {});
                 },
               ),
-              TextButton.icon(
-                icon: const Icon(Icons.speed),
-                label: const Text('Faster'),
+              const SizedBox(width: 8),
+              _buildTactilePillButton(
+                icon: Icons.add,
+                label: 'Faster',
+                tooltip: 'Raise writing speed (tightens gaps)',
                 onPressed: () {
                   _playbackController?.faster();
                   setState(() {});
@@ -777,210 +760,378 @@ class _DictationTestScreenState extends State<DictationTestScreen> {
     );
   }
 
-  Widget _buildCurrentChunkStatus() {
-    final isPlaying = _playbackState == DictationPlaybackState.playingChunk;
-    final isPreparing = _playbackState == DictationPlaybackState.preparing;
-    final isGap = _playbackState == DictationPlaybackState.waitingGap;
-    final isPaused = _playbackState == DictationPlaybackState.paused;
+  Widget _buildTactilePillButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+    String? tooltip,
+  }) {
+    final btn = OutlinedButton.icon(
+      icon: Icon(icon, size: 15, color: const Color(0xFF334155)),
+      label: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF334155))),
+      style: OutlinedButton.styleFrom(
+        side: const BorderSide(color: Color(0xFFE2E8F0)),
+        backgroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+      onPressed: onPressed,
+    );
 
-    Color cardColor = Colors.grey.shade100;
-    String statusTitle = 'Idle';
-
-    if (isPreparing) {
-      cardColor = Colors.orange.shade50;
-      statusTitle = '☁️ Calling Gnani TTS API...';
-    } else if (isPlaying) {
-      cardColor = Colors.green.shade50;
-      statusTitle = 'Speaking Chunk (${_currentChunkIndex + 1} / $_totalChunks)';
-    } else if (isGap) {
-      cardColor = Colors.blue.shade50;
-      statusTitle = 'Writing Pause (Gap Countdown)';
-    } else if (isPaused) {
-      cardColor = Colors.amber.shade50;
-      statusTitle = 'Paused';
+    if (tooltip != null) {
+      return Tooltip(message: tooltip, child: btn);
     }
+    return btn;
+  }
 
-    return Card(
-      elevation: 2,
-      color: cardColor,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  statusTitle,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                ),
-                if (isPreparing)
-                  const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                if (isGap)
+  /// Elegant in-session Pace Feedback Prompt (with correct semantics: Too Slow = Speed up, Too Fast = Slow down)
+  Widget _buildPacePromptCard() {
+    if (!_showPacePrompt) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFCBD5E1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.tune, size: 16, color: Color(0xFF0F172A)),
+                  SizedBox(width: 8),
                   Text(
-                    '${(_remainingGap.inMilliseconds / 1000.0).toStringAsFixed(1)}s left',
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
+                    'Pace check: Is the dictation comfortable for writing?',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0F172A)),
                   ),
-              ],
+                ],
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, size: 16, color: Color(0xFF94A3B8)),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                onPressed: () => setState(() => _showPacePrompt = false),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    _playbackController?.submitPaceFeedback(PacingSignalType.promptTooFast);
+                    setState(() => _showPacePrompt = false);
+                  },
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFF94A3B8)),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: const Text('Too Slow\n(Speed up)', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF0F172A))),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.tonal(
+                  onPressed: () {
+                    _playbackController?.submitPaceFeedback(PacingSignalType.promptJustRight);
+                    setState(() => _showPacePrompt = false);
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFE2E8F0),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: const Text('Just Right\n(Keep pace)', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    _playbackController?.submitPaceFeedback(PacingSignalType.promptTooSlow);
+                    setState(() => _showPacePrompt = false);
+                  },
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFF94A3B8)),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: const Text('Too Fast\n(More time)', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF0F172A))),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Clean Language, Voice, and Note Input Sheet
+  Widget _buildLanguageAndNoteSection() {
+    final voices = GnaniVoiceCatalog.getVoicesForLanguage(_currentLanguage);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Language Segmented Control
+          Row(
+            children: [
+              _buildLanguageTab('en-IN', 'English'),
+              const SizedBox(width: 8),
+              _buildLanguageTab('hi-IN', 'Hindi'),
+              const SizedBox(width: 8),
+              _buildLanguageTab('kn-IN', 'Kannada'),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Voice Selector Row
+          Row(
+            children: [
+              const Text('Voice:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: voices.any((v) => v.name == _currentVoice) ? _currentVoice : voices.first.name,
+                      isExpanded: true,
+                      style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A), fontWeight: FontWeight.w600),
+                      items: voices.map((v) {
+                        return DropdownMenuItem<String>(
+                          value: v.name,
+                          child: Text('${v.name} (${v.gender[0]} · ${v.model.split('-').last})'),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() {
+                            _currentVoice = val;
+                            _playbackController?.voice = val;
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Sample Note Chips
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: sampleTexts.map((sample) {
+                final isSelected = _textController.text == sample['text'];
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: FilterChip(
+                    label: Text(sample['title']!, style: const TextStyle(fontSize: 11)),
+                    selected: isSelected,
+                    selectedColor: const Color(0xFFE2E8F0),
+                    backgroundColor: const Color(0xFFF8FAFC),
+                    side: BorderSide(color: isSelected ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0)),
+                    showCheckmark: false,
+                    onSelected: (selected) {
+                      if (selected) {
+                        _onLanguageChanged(sample['lang']!);
+                        _textController.text = sample['text']!;
+                      }
+                    },
+                  ),
+                );
+              }).toList(),
             ),
-            if (isGap) ...[
-              const SizedBox(height: 8),
-              LinearProgressIndicator(
-                value: (1.0 - _gapProgress).clamp(0.0, 1.0),
-                backgroundColor: Colors.blue.shade100,
-                color: Colors.blue,
+          ),
+          const SizedBox(height: 12),
+
+          // Note Text Input Area
+          TextField(
+            controller: _textController,
+            maxLines: 5,
+            style: const TextStyle(fontSize: 14, height: 1.5, color: Color(0xFF0F172A)),
+            decoration: InputDecoration(
+              hintText: 'Paste or type notes to dictate...',
+              filled: true,
+              fillColor: const Color(0xFFF8FAFC),
+              contentPadding: const EdgeInsets.all(12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
               ),
-            ],
-            if (_currentChunk != null) ...[
-              const SizedBox(height: 10),
-              Text(
-                '"${_currentChunk!.text}"',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, fontStyle: FontStyle.italic),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
               ),
-              const SizedBox(height: 4),
-              Text(
-                'Graphemes: ${PacingEngine.countGraphemes(_currentChunk!.text)} | Boundary: ${_currentChunk!.boundaryType.name}',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: Color(0xFF0F172A)),
               ),
-            ],
-          ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLanguageTab(String langCode, String label) {
+    final isSelected = _currentLanguage == langCode;
+    return Expanded(
+      child: InkWell(
+        onTap: () => _onLanguageChanged(langCode),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: isSelected ? Colors.white : const Color(0xFF475569),
+            ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildSessionLogList() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'Session Chunk Audit Log',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black54),
+  /// Collapsible Session Log Table (Clean unslop format)
+  Widget _buildSessionLogSection() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        children: [
+          ListTile(
+            title: Text(
+              'Session Audit Log (${_logs.length} phrases)',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
             ),
-            if (_logs.isNotEmpty)
-              ElevatedButton.icon(
-                icon: const Icon(Icons.copy, size: 14),
-                label: const Text('Copy Table', style: TextStyle(fontSize: 12)),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  backgroundColor: Colors.teal.shade50,
-                  foregroundColor: Colors.teal.shade900,
-                  elevation: 0,
-                  visualDensity: VisualDensity.compact,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_logs.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.copy, size: 16, color: Color(0xFF64748B)),
+                    tooltip: 'Copy Markdown Table',
+                    onPressed: _copySessionLogsToClipboard,
+                  ),
+                Icon(
+                  _isLogsExpanded ? Icons.expand_less : Icons.expand_more,
+                  color: const Color(0xFF64748B),
                 ),
-                onPressed: _copySessionLogsToClipboard,
-              ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        if (_logs.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(16),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.shade200),
+              ],
             ),
-            child: const Text('No chunks dictated yet.', style: TextStyle(color: Colors.grey)),
-          )
-        else
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _logs.length,
-            itemBuilder: (context, index) {
-              final log = _logs[index];
-              return Card(
-                margin: const EdgeInsets.symmetric(vertical: 4),
-                child: Padding(
-                  padding: const EdgeInsets.all(10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
+            onTap: () => setState(() => _isLogsExpanded = !_isLogsExpanded),
+          ),
+          if (_isLogsExpanded) ...[
+            const Divider(height: 1, color: Color(0xFFE2E8F0)),
+            if (_logs.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(20),
+                child: Text('No phrases dictated yet in this session.', style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
+              )
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _logs.length,
+                separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                itemBuilder: (context, index) {
+                  final log = _logs[index];
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CircleAvatar(
+                          radius: 10,
+                          backgroundColor: log.isFromCache ? const Color(0xFFFEF3C7) : const Color(0xFFE2E8F0),
+                          child: Text(
+                            '${log.chunkIndex + 1}',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              color: log.isFromCache ? const Color(0xFF92400E) : const Color(0xFF334155),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              CircleAvatar(
-                                radius: 12,
-                                backgroundColor: log.isFromCache ? Colors.amber.shade100 : Colors.teal.shade100,
-                                child: Text(
-                                  '#${log.chunkIndex}',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: log.isFromCache ? Colors.amber.shade900 : Colors.teal.shade900,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
                               Text(
                                 log.text,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${log.graphemes} letters · Speech: ${log.speechDurationSeconds.toStringAsFixed(1)}s · Gap: ${log.gapSeconds.toStringAsFixed(1)}s · ${log.isFromCache ? '⚡ Cache' : '☁️ API'}',
+                                style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
                               ),
                             ],
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: log.isFromCache ? Colors.amber.shade50 : Colors.blue.shade50,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              log.isFromCache ? '⚡ Cache' : '☁️ API',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: log.isFromCache ? Colors.amber.shade800 : Colors.blue.shade800,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 12,
-                        runSpacing: 4,
-                        children: [
-                          _buildMetricChip('Graphemes', '${log.graphemes}'),
-                          _buildMetricChip('Speech', '${log.speechDurationSeconds.toStringAsFixed(2)}s'),
-                          _buildMetricChip('Budget', '${log.writingBudgetSeconds.toStringAsFixed(2)}s'),
-                          _buildMetricChip('Gap', '${log.gapSeconds.toStringAsFixed(2)}s'),
-                          _buildMetricChip('Cycle', '${log.totalCycleSeconds.toStringAsFixed(2)}s'),
-                          _buildMetricChip('Boundary', log.boundaryType.name),
-                          if (log.userAction != 'none')
-                            _buildMetricChip('Action', log.userAction, color: Colors.purple),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-      ],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+          ],
+        ],
+      ),
     );
   }
 
-  Widget _buildMetricChip(String label, String value, {Color? color}) {
-    return Text.rich(
-      TextSpan(
+  Widget _buildErrorBanner() {
+    return Container(
+      width: double.infinity,
+      color: const Color(0xFFFEF2F2),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
         children: [
-          TextSpan(text: '$label: ', style: const TextStyle(fontSize: 11, color: Colors.black54)),
-          TextSpan(
-            text: value,
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color ?? Colors.black87),
+          const Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 16),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _errorMessage ?? 'An error occurred',
+              style: const TextStyle(fontSize: 12, color: Color(0xFFB91C1C), fontWeight: FontWeight.w500),
+            ),
+          ),
+          TextButton(
+            onPressed: () => _playbackController?.retryCurrentChunk(),
+            child: const Text('Retry', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFDC2626))),
           ),
         ],
       ),

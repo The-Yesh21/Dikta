@@ -54,10 +54,10 @@ class PacingFeedbackConfig {
   /// Synthetic observed ratio applied when user gives generic "wait" command (default 0.80).
   final double waitExtraRatio;
 
-  /// Synthetic observed ratio applied when user responds "Too slow" on prompt (default 0.85).
+  /// Synthetic observed ratio applied when user responds "Too slow" on prompt (default 1.20 -> user wants faster dictation).
   final double tooSlowPromptRatio;
 
-  /// Synthetic observed ratio applied when user responds "Too fast" on prompt (default 1.15).
+  /// Synthetic observed ratio applied when user responds "Too fast" on prompt (default 0.80 -> user wants slower dictation).
   final double tooFastPromptRatio;
 
   /// Minimum clamp for observedRatio to prevent destabilizing update shocks (default 0.40).

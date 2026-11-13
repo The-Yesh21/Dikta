@@ -55,6 +55,7 @@ class GnaniTtsEngine implements VoiceEngine {
   final GnaniConfig config;
   final GnaniChunkCache _cache;
   final HttpClient _httpClient;
+  final Map<String, GeneratedAudio> _memCache = {};
 
   String _currentVoice = GnaniConfig.defaultConfig.defaultVoice;
   String _currentLanguage = GnaniConfig.defaultConfig.defaultLanguage;
@@ -94,7 +95,20 @@ class GnaniTtsEngine implements VoiceEngine {
     // Clamp speed to Gnani API supported range: [0.85, 1.15]
     final clampedSpeed = speed.clamp(config.minSpeed, config.maxSpeed);
 
-    // 1. Check disk cache first
+    // 0. Fast In-Memory Cache Lookup (avoids repeated disk I/O and network)
+    final memKey = '${effectiveLanguage.toLowerCase()}|${effectiveVoice.toLowerCase()}|${clampedSpeed.toStringAsFixed(2)}|${text.trim()}';
+    if (_memCache.containsKey(memKey)) {
+      final memAudio = _memCache[memKey]!;
+      return GeneratedAudio(
+        durationSeconds: memAudio.durationSeconds,
+        sampleRate: memAudio.sampleRate,
+        wavBytes: memAudio.wavBytes,
+        audioFilePath: memAudio.audioFilePath,
+        isFromCache: true,
+      );
+    }
+
+    // 1. Check disk cache
     final cachedPath = await _cache.getCachedAudioPath(
       text: text,
       voice: effectiveVoice,
@@ -108,13 +122,15 @@ class GnaniTtsEngine implements VoiceEngine {
       final bytes = await file.readAsBytes();
       final duration = _extractWavDuration(bytes, config.defaultSampleRate);
 
-      return GeneratedAudio(
+      final audio = GeneratedAudio(
         durationSeconds: duration,
         sampleRate: config.defaultSampleRate,
         wavBytes: bytes,
         audioFilePath: cachedPath,
         isFromCache: true,
       );
+      _memCache[memKey] = audio;
+      return audio;
     }
 
     // 2. Ensure API key is configured
@@ -152,13 +168,15 @@ class GnaniTtsEngine implements VoiceEngine {
 
     final duration = _extractWavDuration(wavBytes, config.defaultSampleRate);
 
-    return GeneratedAudio(
+    final generated = GeneratedAudio(
       durationSeconds: duration,
       sampleRate: config.defaultSampleRate,
       wavBytes: wavBytes,
       audioFilePath: savedPath,
       isFromCache: false,
     );
+    _memCache[memKey] = generated;
+    return generated;
   }
 
   Future<Uint8List> _callInferenceApi({
@@ -204,7 +222,7 @@ class GnaniTtsEngine implements VoiceEngine {
 
     if (statusCode == 200) {
       final wavBytes = Uint8List.fromList(responseBodyBytes);
-      return normalizeWavHeader(wavBytes);
+      return prependWavSilence(wavBytes, sampleRate: config.defaultSampleRate, leadingSilenceMs: 250);
     }
 
     // Decode error body
@@ -266,6 +284,31 @@ class GnaniTtsEngine implements VoiceEngine {
     // Fallback: estimate from total payload assuming 44-byte header
     final payloadSize = (bytes.length - 44).clamp(0, bytes.length);
     return payloadSize / (sampleRate * 2);
+  }
+
+  /// Prepends [leadingSilenceMs] of silence (zeros) to the WAV audio payload.
+  ///
+  /// Solves the Android hardware DAC / Bluetooth cold startup ramp-up latency
+  /// where the first 200-300ms of audio are muted by hardware power-management.
+  static Uint8List prependWavSilence(
+    Uint8List bytes, {
+    int sampleRate = 16000,
+    int leadingSilenceMs = 250,
+  }) {
+    if (bytes.length < 44 || leadingSilenceMs <= 0) {
+      return normalizeWavHeader(bytes);
+    }
+
+    final silenceSampleCount = (sampleRate * (leadingSilenceMs / 1000.0)).round();
+    final silenceBytesCount = silenceSampleCount * 2; // 16-bit mono = 2 bytes per sample
+
+    final builder = BytesBuilder(copy: false)
+      ..add(bytes.sublist(0, 44))
+      ..add(Uint8List(silenceBytesCount))
+      ..add(bytes.sublist(44));
+
+    final combined = builder.toBytes();
+    return normalizeWavHeader(combined);
   }
 
   /// Normalizes streaming WAV headers where cloud API leaves chunk sizes as 0xFFFFFFFF.

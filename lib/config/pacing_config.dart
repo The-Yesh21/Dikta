@@ -28,6 +28,7 @@ class PacingConfig {
     this.syntaxPauseParagraphSeconds = 2.5,
     this.jitterSigma = 0.15,
     this.minGapSeconds = 0.3,
+    this.maxGapSeconds = 60.0,
     this.fatigueStrength = 1.0,
     this.sawtoothIntervalMinutes = 5.0,
     this.sawtoothRecoveryRatio = 0.5,
@@ -97,6 +98,9 @@ class PacingConfig {
 
   /// Minimum allowable silence gap in seconds (default 0.3s).
   final double minGapSeconds;
+
+  /// Maximum allowable silence gap in seconds (default 14.0s) to prevent runaway pauses.
+  final double maxGapSeconds;
 
   /// Multiplier for tempo decay (0.0 turns off fatigue, 1.0 is full fatigue).
   final double fatigueStrength;
@@ -182,6 +186,7 @@ class PacingConfig {
     double? syntaxPauseParagraphSeconds,
     double? jitterSigma,
     double? minGapSeconds,
+    double? maxGapSeconds,
     double? fatigueStrength,
     double? sawtoothIntervalMinutes,
     double? sawtoothRecoveryRatio,
@@ -218,6 +223,7 @@ class PacingConfig {
       syntaxPauseParagraphSeconds: syntaxPauseParagraphSeconds ?? this.syntaxPauseParagraphSeconds,
       jitterSigma: jitterSigma ?? this.jitterSigma,
       minGapSeconds: minGapSeconds ?? this.minGapSeconds,
+      maxGapSeconds: maxGapSeconds ?? this.maxGapSeconds,
       fatigueStrength: fatigueStrength ?? this.fatigueStrength,
       sawtoothIntervalMinutes: sawtoothIntervalMinutes ?? this.sawtoothIntervalMinutes,
       sawtoothRecoveryRatio: sawtoothRecoveryRatio ?? this.sawtoothRecoveryRatio,

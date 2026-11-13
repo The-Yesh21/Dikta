@@ -233,10 +233,11 @@ class PacingEngine {
     final jitter = applyJitter ? _generateLognormalJitter() : 1.0;
     final writingTime = writeSeconds * jitter;
 
-    // 3. Overlap with speech: max(minGap, writeSeconds - overlapFactor * speechSeconds)
+    // 3. Overlap with speech: max(minGap, min(maxGap, writeSeconds) - overlapFactor * speechSeconds)
+    final clampedWritingTime = math.min(config.maxGapSeconds, writingTime);
     final netWritingTime = math.max(
       config.minGapSeconds,
-      writingTime - (config.overlapFactor * speechDurationSeconds),
+      clampedWritingTime - (config.overlapFactor * speechDurationSeconds),
     );
 
     // 4. Boundary pause added on top of net writing time.

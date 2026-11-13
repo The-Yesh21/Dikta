@@ -26,7 +26,7 @@ class GnaniChunkCache {
       return _cacheDir!;
     }
 
-    final baseDir = await getApplicationCacheDirectory();
+    final baseDir = await getApplicationDocumentsDirectory();
     final dir = Directory('${baseDir.path}/gnani_tts_cache');
     if (!await dir.exists()) {
       await dir.create(recursive: true);
@@ -43,8 +43,9 @@ class GnaniChunkCache {
     required double speed,
     required String model,
   }) {
+    final normalizedText = text.trim();
     final speedStr = speed.toStringAsFixed(2);
-    final raw = '$language|$model|$voice|$speedStr|$text';
+    final raw = '${language.toLowerCase()}|${model.toLowerCase()}|${voice.toLowerCase()}|$speedStr|$normalizedText';
     final bytes = utf8.encode(raw);
     
     // Simple 64-bit FNV-1a hash + length for collision resistance without external crypto package
@@ -55,7 +56,7 @@ class GnaniChunkCache {
     }
 
     // Combine hash with text prefix (sanitized)
-    final safePrefix = text
+    final safePrefix = normalizedText
         .replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')
         .toLowerCase();
     final prefixSnippet = safePrefix.length > 20 ? safePrefix.substring(0, 20) : safePrefix;
