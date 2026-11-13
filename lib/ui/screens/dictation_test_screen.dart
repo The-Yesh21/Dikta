@@ -209,7 +209,9 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
     setState(() {
       _currentLanguage = newLang;
       final voices = GnaniVoiceCatalog.getVoicesForLanguage(newLang);
-      if (!voices.any((v) => v.name == _currentVoice)) {
+      if (newLang == 'kn-IN' && _currentVoice != 'Saanvi' && _currentVoice != 'Kavin') {
+        _currentVoice = 'Saanvi';
+      } else if (!voices.any((v) => v.name == _currentVoice)) {
         _currentVoice = voices.first.name;
       }
       _playbackController?.voice = _currentVoice;
@@ -794,7 +796,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                       style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
                     ),
                     Text(
-                      'Spells out words with ≥7 letters letter-by-letter',
+                      'Spells long words (≥10 letters) syllable-by-syllable',
                       style: TextStyle(fontSize: 10, color: Color(0xFF64748B)),
                     ),
                   ],

@@ -224,4 +224,15 @@ class GnaniVoiceCatalog {
     final v25 = timbreV25Voices.where((v) => v.language == language).toList();
     return [...v3, ...v25];
   }
+
+  /// Finds metadata for a voice by name (case-insensitive).
+  static GnaniVoiceInfo? findVoice(String voiceName) {
+    for (final v in timbreV3Voices) {
+      if (v.name.toLowerCase() == voiceName.toLowerCase()) return v;
+    }
+    for (final v in timbreV25Voices) {
+      if (v.name.toLowerCase() == voiceName.toLowerCase()) return v;
+    }
+    return null;
+  }
 }

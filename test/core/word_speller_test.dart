@@ -2,55 +2,68 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:dictation_app/core/spelling/word_speller.dart';
 
 void main() {
-  const speller = WordSpeller(minLetterThreshold: 7);
+  const defaultSpeller = WordSpeller(); // default threshold: 10
 
-  group('WordSpeller Difficult Word Detection', () {
-    test('detects words meeting length threshold and strips punctuation', () {
+  group('WordSpeller Difficult Word Detection (Threshold = 10)', () {
+    test('detects words meeting default threshold (>=10 letters) and excludes shorter words', () {
       const text = 'Mitochondria are membrane-bound cell organelles producing ATP.';
-      final difficult = speller.findDifficultWords(text);
+      final difficult = defaultSpeller.findDifficultWords(text);
 
-      expect(difficult, contains('Mitochondria'));
-      expect(difficult, contains('membrane'));
-      expect(difficult, contains('organelles'));
-      expect(difficult, contains('producing'));
-      // Short words should not be detected
-      expect(difficult, isNot(contains('cell')));
-      expect(difficult, isNot(contains('are')));
+      expect(difficult, contains('Mitochondria')); // 12 letters
+      expect(difficult, contains('organelles')); // 10 letters
+      // Words with < 10 letters should not be detected
+      expect(difficult, isNot(contains('membrane'))); // 8 letters
+      expect(difficult, isNot(contains('producing'))); // 9 letters
+      expect(difficult, isNot(contains('cell'))); // 4 letters
       expect(difficult, isNot(contains('ATP')));
     });
 
     test('deduplicates case-insensitive duplicate words in the same phrase', () {
-      const text = 'Respiration and respiration are chemical processes.';
-      final difficult = speller.findDifficultWords(text);
-      expect(difficult.where((w) => w.toLowerCase() == 'respiration').length, 1);
+      const text = 'Photosynthesis and PHOTOSYNTHESIS are biological concepts.';
+      final difficult = defaultSpeller.findDifficultWords(text);
+      expect(difficult.where((w) => w.toLowerCase() == 'photosynthesis').length, 1);
     });
 
     test('handles empty or short text safely', () {
-      expect(speller.findDifficultWords(''), isEmpty);
-      expect(speller.findDifficultWords('a an the is'), isEmpty);
+      expect(defaultSpeller.findDifficultWords(''), isEmpty);
+      expect(defaultSpeller.findDifficultWords('a an the is producing membrane'), isEmpty);
     });
   });
 
-  group('WordSpeller Spelling Formatting', () {
-    test('formats English spelling with comma separated letters for clear TTS', () {
-      final speech = speller.formatSpellingForSpeech('Mitochondria');
-      expect(speech, 'M, I, T, O, C, H, O, N, D, R, I, A.');
+  group('WordSpeller Pedagogical Syllable Spelling Formatting', () {
+    test('chunks "Mitochondria" into "M I T O mito" and "C H O N D R I A mitochondria"', () {
+      final speech = defaultSpeller.formatSpellingForSpeech('Mitochondria');
+      expect(speech, 'M, I, T, O. mito. C, H, O, N, D, R, I, A. mitochondria.');
     });
 
-    test('formats English spelling with dots for catchy UI display', () {
-      final display = speller.formatSpellingForDisplay('ATP');
-      expect(display, 'A · T · P');
-
-      final displayLong = speller.formatSpellingForDisplay('Cell');
-      expect(displayLong, 'C · E · L · L');
+    test('formats English chunked display with syllable dots and phonetic hints for UI', () {
+      final display = defaultSpeller.formatSpellingForDisplay('Mitochondria');
+      expect(display, contains('M · I · T · O (mito)'));
+      expect(display, contains('C · H · O · N · D · R · I · A (mitochondria)'));
     });
 
-    test('builds enriched spoken text with difficult word spelling', () {
-      const phrase = 'Mitochondria produce cellular energy';
-      final enriched = speller.buildSpokenTextWithSpelling(phrase);
+    test('builds enriched spoken text with pedagogical difficult word spelling', () {
+      const phrase = 'Mitochondria are powerful cell organelles.';
+      final enriched = defaultSpeller.buildSpokenTextWithSpelling(phrase);
 
       expect(enriched, contains('Mitochondria'));
-      expect(enriched, contains('Spelled: M, I, T, O, C, H, O, N, D, R, I, A.'));
+      expect(
+        enriched,
+        contains('Mitochondria. Spelled: M, I, T, O. mito. C, H, O, N, D, R, I, A. mitochondria.'),
+      );
+    });
+
+    test('formats short words directly if under chunking length', () {
+      final display = defaultSpeller.formatSpellingForDisplay('ATP');
+      expect(display, 'A · T · P');
+    });
+
+    test('formats Indic aksharas in two pedagogical halves', () {
+      // ದ್ಯುತಿಸಂಶ್ಲೇಷಣೆ (Photosynthesis in Kannada)
+      const kannadaWord = 'ದ್ಯುತಿಸಂಶ್ಲೇಷಣೆಯು';
+      final speech = defaultSpeller.formatSpellingForSpeech(kannadaWord);
+      expect(speech, contains('.'));
+      expect(speech, endsWith('$kannadaWord.'));
     });
   });
 }

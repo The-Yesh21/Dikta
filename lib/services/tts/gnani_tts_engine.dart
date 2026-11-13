@@ -90,7 +90,8 @@ class GnaniTtsEngine implements VoiceEngine {
         (language != null && !GnaniVoiceCatalog.getVoicesForLanguage(effectiveLanguage).any((v) => v.name == _currentVoice)
             ? GnaniVoiceCatalog.getVoicesForLanguage(effectiveLanguage).first.name
             : _currentVoice);
-    final effectiveModel = model ?? _currentModel;
+    final voiceInfo = GnaniVoiceCatalog.findVoice(effectiveVoice);
+    final effectiveModel = model ?? voiceInfo?.model ?? _currentModel;
 
     // Clamp speed to Gnani API supported range: [0.85, 1.15]
     final clampedSpeed = speed.clamp(config.minSpeed, config.maxSpeed);
@@ -189,8 +190,8 @@ class GnaniTtsEngine implements VoiceEngine {
     final uri = Uri.parse(config.endpoint);
     final request = await _httpClient.postUrl(uri);
 
-    // Standard headers
-    request.headers.set('Content-Type', 'application/json');
+    // Standard headers with UTF-8 JSON content-type
+    request.headers.contentType = ContentType.json;
     // Note: NEVER log or expose this header in debug output
     request.headers.set('X-API-Key-ID', _apiKey);
     request.headers.set('User-Agent', 'DictationApp/1.0 (Android; Flutter)');
@@ -210,7 +211,8 @@ class GnaniTtsEngine implements VoiceEngine {
       },
     };
 
-    request.write(jsonEncode(payload));
+    // CRITICAL: Must use utf8.encode to prevent Latin-1 encoding crashes with non-ASCII scripts (Kannada, Hindi)
+    request.add(utf8.encode(jsonEncode(payload)));
     final response = await request.close();
 
     final responseBodyBytes = await response.fold<List<int>>(
