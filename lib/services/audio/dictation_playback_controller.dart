@@ -5,6 +5,8 @@ import 'package:audioplayers/audioplayers.dart';
 import '../../config/pacing_config.dart';
 import '../../core/chunker/chunk_info.dart';
 import '../../core/pacing/pacing_engine.dart';
+import '../../core/pacing/pacing_feedback_loop.dart';
+import '../storage/user_pacing_storage.dart';
 import '../tts/voice_engine.dart';
 import 'pausable_gap_timer.dart';
 import 'temp_audio_file_manager.dart';
@@ -159,17 +161,23 @@ class DictationPlaybackController {
     String? language,
     DictationAudioPlayer? audioPlayer,
     TempAudioFileManager? tempFileManager,
+    PacingFeedbackLoop? feedbackLoop,
+    UserPacingStorageService? storageService,
   })  : _speakerId = speakerId ?? config.defaultSpeakerId,
         _voice = voice,
         _language = language,
         _audioPlayer = audioPlayer ?? DefaultDictationAudioPlayer(),
-        _tempFileManager = tempFileManager ?? TempAudioFileManager();
+        _tempFileManager = tempFileManager ?? TempAudioFileManager(),
+        feedbackLoop = feedbackLoop ?? PacingFeedbackLoop(initialLpm: pacingEngine.userLpm),
+        storageService = storageService ?? UserPacingStorageService();
 
   final VoiceEngine voiceEngine;
   final PacingEngine pacingEngine;
   final PacingConfig config;
   final DictationAudioPlayer _audioPlayer;
   final TempAudioFileManager _tempFileManager;
+  final PacingFeedbackLoop feedbackLoop;
+  final UserPacingStorageService storageService;
 
   int _speakerId;
   int get speakerId => _speakerId;
@@ -218,6 +226,11 @@ class DictationPlaybackController {
   DictationPlaybackState _pausedFromState = DictationPlaybackState.idle;
   String _currentUserActionForChunk = 'none';
 
+  Stopwatch? _gapStopwatch;
+  double _currentPlannedGapSeconds = 0.0;
+  double _currentSpeechDurationSeconds = 0.0;
+  bool _gapManuallySkipped = false;
+
   // Stream controllers for UI observability
   final _stateController = StreamController<DictationPlaybackState>.broadcast();
   Stream<DictationPlaybackState> get onStateChanged => _stateController.stream;
@@ -230,6 +243,9 @@ class DictationPlaybackController {
 
   final _errorController = StreamController<String?>.broadcast();
   Stream<String?> get onErrorChanged => _errorController.stream;
+
+  final _pacePromptController = StreamController<bool>.broadcast();
+  Stream<bool> get onPacePromptRequested => _pacePromptController.stream;
 
   /// Starts or restarts dictation from chunk index 0.
   Future<void> start(List<ChunkInfo> chunks) async {
@@ -276,7 +292,7 @@ class DictationPlaybackController {
       _transitionTo(DictationPlaybackState.preparing);
 
       // Compute speed with long-word adaptation
-      final baseRate = _speakerId != null ? config.kokoroSpeed : pacingEngine.gnaniSpeechRate;
+      final baseRate = _voice != null ? pacingEngine.gnaniSpeechRate : config.kokoroSpeed;
       final speed = pacingEngine.calculateChunkVoiceSpeed(chunk, baseRate: baseRate);
 
       GeneratedAudio audio;
@@ -393,6 +409,10 @@ class DictationPlaybackController {
       // 5. Run PausableGapTimer for the pacing silence gap.
       // Every chunk (including final chunk) executes its gap so the student can copy it down.
       final effectiveGap = gapSeconds > 0 ? gapSeconds : config.minGapSeconds;
+      _currentPlannedGapSeconds = effectiveGap;
+      _currentSpeechDurationSeconds = durationSec;
+      _gapManuallySkipped = false;
+      _gapStopwatch = Stopwatch()..start();
       _transitionTo(DictationPlaybackState.waitingGap);
 
       final gapDuration = Duration(milliseconds: (effectiveGap * 1000).round());
@@ -409,18 +429,49 @@ class DictationPlaybackController {
       );
 
       await _currentGapTimer!.run();
+      _gapStopwatch?.stop();
       _currentGapTimer = null;
       _currentGapRemaining = Duration.zero;
       _currentGapProgress = 1.0;
 
       if (_isStopRequested) break;
 
+      // Closed-loop adaptation: if gap elapsed naturally without early tap or repeat
+      if (!_gapManuallySkipped && _state != DictationPlaybackState.error) {
+        feedbackLoop.onNoAction(chunkIndex: _currentChunkIndex + 1);
+        pacingEngine.userLpm = feedbackLoop.currentLpm;
+      }
+
+      // Check in-session prompt schedule (after first 5 chunks, then every 20 until locked)
+      if (feedbackLoop.shouldShowPacePrompt(_currentChunkIndex + 1)) {
+        _pacePromptController.add(true);
+      }
+
       _currentChunkIndex++;
     }
 
     if (!_isStopRequested && _state != DictationPlaybackState.error) {
       _transitionTo(DictationPlaybackState.completed);
+      await _saveSessionLpm();
     }
+  }
+
+  /// Saves the final calibrated LPM to persistent storage at session end.
+  Future<void> _saveSessionLpm() async {
+    try {
+      final text = _currentChunk?.text ?? (_chunks.isNotEmpty ? _chunks.first.text : '');
+      final script = PacingEngine.detectScript(text, languageCode: _language);
+      await storageService.saveCalibratedLpm(
+        script: script,
+        lpm: feedbackLoop.currentLpm,
+      );
+    } catch (_) {}
+  }
+
+  /// Submits user response to the in-session 'Pace OK?' prompt.
+  void submitPaceFeedback(PacingSignalType choice) {
+    feedbackLoop.onPromptResponse(choice, chunkIndex: _currentChunkIndex + 1);
+    pacingEngine.userLpm = feedbackLoop.currentLpm;
   }
 
   /// Tap-to-advance: skips the remaining silence gap, records 'next', speeds up pacing,
@@ -428,6 +479,18 @@ class DictationPlaybackController {
   void skipGap() {
     if (_state == DictationPlaybackState.waitingGap && _currentGapTimer != null) {
       _recordUserAction('next (advance)');
+      _gapManuallySkipped = true;
+      _gapStopwatch?.stop();
+      final elapsed = (_gapStopwatch?.elapsedMilliseconds ?? 0) / 1000.0;
+      feedbackLoop.onNextEarly(
+        plannedGapSeconds: _currentPlannedGapSeconds,
+        elapsedGapSeconds: elapsed,
+        speechDurationSeconds: _currentSpeechDurationSeconds,
+        overlapFactor: config.overlapFactor,
+        chunkIndex: _currentChunkIndex + 1,
+      );
+      pacingEngine.userLpm = feedbackLoop.currentLpm;
+
       final script = PacingEngine.detectScript(_currentChunk?.text ?? '', languageCode: _language);
       pacingEngine.adaptFaster(script);
       _currentGapTimer?.cancel();
@@ -437,6 +500,8 @@ class DictationPlaybackController {
   /// Slower: user requests slower pacing.
   void slower() {
     _recordUserAction('slower');
+    feedbackLoop.onSlower(chunkIndex: _currentChunkIndex + 1);
+    pacingEngine.userLpm = feedbackLoop.currentLpm;
     final script = PacingEngine.detectScript(_currentChunk?.text ?? '', languageCode: _language);
     pacingEngine.adaptSlower(script);
   }
@@ -444,6 +509,8 @@ class DictationPlaybackController {
   /// Faster: user requests faster pacing.
   void faster() {
     _recordUserAction('faster');
+    feedbackLoop.onFaster(chunkIndex: _currentChunkIndex + 1);
+    pacingEngine.userLpm = feedbackLoop.currentLpm;
     final script = PacingEngine.detectScript(_currentChunk?.text ?? '', languageCode: _language);
     pacingEngine.adaptFaster(script);
   }
@@ -472,6 +539,8 @@ class DictationPlaybackController {
   Future<void> repeatCurrentChunk() async {
     if (_chunks.isEmpty) return;
     _recordUserAction('repeat');
+    feedbackLoop.onRepeat(chunkIndex: _currentChunkIndex + 1);
+    pacingEngine.userLpm = feedbackLoop.currentLpm;
     final script = PacingEngine.detectScript(_currentChunk?.text ?? '', languageCode: _language);
     pacingEngine.adaptSlower(script);
 
@@ -536,6 +605,10 @@ class DictationPlaybackController {
       _currentTempWavPath = null;
     }
 
+    if (_sessionLogs.isNotEmpty) {
+      await _saveSessionLpm();
+    }
+
     await _tempFileManager.cleanupAll();
     _currentGapRemaining = Duration.zero;
     _currentGapProgress = 0.0;
@@ -554,5 +627,6 @@ class DictationPlaybackController {
     await _logController.close();
     await _gapTickController.close();
     await _errorController.close();
+    await _pacePromptController.close();
   }
 }

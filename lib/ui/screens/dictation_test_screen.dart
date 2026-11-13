@@ -6,6 +6,7 @@ import '../../config/pacing_config.dart';
 import '../../core/chunker/chunk_info.dart';
 import '../../core/chunker/text_chunker.dart';
 import '../../core/pacing/pacing_engine.dart';
+import '../../core/pacing/pacing_feedback_loop.dart';
 import '../../services/audio/dictation_playback_controller.dart';
 import '../../services/tts/gnani_tts_engine.dart';
 import 'live_tuning_panel.dart';
@@ -35,6 +36,9 @@ class _DictationTestScreenState extends State<DictationTestScreen> {
   StreamSubscription<DictationSessionLog>? _logSub;
   StreamSubscription<Duration>? _gapSub;
   StreamSubscription<String?>? _errorSub;
+  StreamSubscription<bool>? _pacePromptSub;
+
+  bool _showPacePrompt = false;
 
   DictationPlaybackState _playbackState = DictationPlaybackState.idle;
   final List<DictationSessionLog> _logs = [];
@@ -122,6 +126,14 @@ class _DictationTestScreenState extends State<DictationTestScreen> {
       }
     });
 
+    _pacePromptSub = _playbackController!.onPacePromptRequested.listen((shouldShow) {
+      if (mounted) {
+        setState(() {
+          _showPacePrompt = shouldShow;
+        });
+      }
+    });
+
     setState(() {
       _isEngineReady = true;
       _statusMessage = 'Gnani Cloud TTS Ready';
@@ -134,6 +146,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> {
     _logSub?.cancel();
     _gapSub?.cancel();
     _errorSub?.cancel();
+    _pacePromptSub?.cancel();
     _playbackController?.dispose();
     _ttsEngine.dispose();
     _textController.dispose();
@@ -198,6 +211,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> {
       MaterialPageRoute(
         builder: (context) => WritingCalibrationScreen(
           language: _currentLanguage,
+          voiceEngine: _ttsEngine,
           onSpeedCalibrated: (script, secPerGrapheme) {
             _pacingEngine.setSecondsPerGrapheme(script, secPerGrapheme);
             ScaffoldMessenger.of(context).showSnackBar(
@@ -287,6 +301,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> {
                 const SizedBox(height: 16),
                 _buildControls(),
                 const SizedBox(height: 16),
+                _buildPacePromptCard(),
                 _buildCurrentChunkStatus(),
                 const SizedBox(height: 16),
                 _buildSessionLogList(),
@@ -299,8 +314,9 @@ class _DictationTestScreenState extends State<DictationTestScreen> {
   }
 
   Widget _buildStatusBar() {
-    final activeScript = PacingEngine.detectScript(_textController.text, languageCode: _currentLanguage);
-    final secPerGrapheme = _pacingEngine.getWritingSecondsPerGrapheme(script: activeScript);
+    final isLocked = _playbackController?.feedbackLoop.isLocked ?? false;
+    final currentAlpha = _playbackController?.feedbackLoop.currentAlpha ?? 0.25;
+    final userLpm = _pacingEngine.userLpm;
 
     return Container(
       width: double.infinity,
@@ -311,9 +327,63 @@ class _DictationTestScreenState extends State<DictationTestScreen> {
           const Icon(Icons.cloud_done, color: Colors.teal, size: 20),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              '$_statusMessage | Pace: ${secPerGrapheme.toStringAsFixed(2)}s/gr',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.teal),
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              children: [
+                Text(
+                  _statusMessage,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.teal),
+                ),
+                if (isLocked)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade100,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.green.shade700),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.lock, size: 12, color: Colors.green),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Pace locked (${userLpm.toStringAsFixed(1)} LPM)',
+                          style: TextStyle(
+                            color: Colors.green.shade900,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blue.shade300),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.sync, size: 12, color: Colors.blue),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Adapting: ${userLpm.toStringAsFixed(1)} LPM (α=${currentAlpha.toStringAsFixed(2)})',
+                          style: TextStyle(
+                            color: Colors.blue.shade900,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
             ),
           ),
           TextButton.icon(
@@ -322,6 +392,87 @@ class _DictationTestScreenState extends State<DictationTestScreen> {
             onPressed: _openCalibrationScreen,
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPacePromptCard() {
+    if (!_showPacePrompt) return const SizedBox.shrink();
+
+    return Card(
+      elevation: 3,
+      margin: const EdgeInsets.only(bottom: 16),
+      color: Colors.indigo.shade50,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.indigo.shade200, width: 1.5),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.speed, color: Colors.indigo, size: 20),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Pace OK? How is the dictation speed for your writing?',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.indigo),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: () => setState(() => _showPacePrompt = false),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.arrow_downward, size: 16, color: Colors.deepOrange),
+                  label: const Text('Too slow', style: TextStyle(fontSize: 12)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.deepOrange,
+                    side: const BorderSide(color: Colors.deepOrange),
+                  ),
+                  onPressed: () {
+                    _playbackController?.submitPaceFeedback(PacingSignalType.promptTooSlow);
+                    setState(() => _showPacePrompt = false);
+                  },
+                ),
+                FilledButton.tonalIcon(
+                  icon: const Icon(Icons.check, size: 16, color: Colors.teal),
+                  label: const Text('Just right', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.teal.shade100,
+                    foregroundColor: Colors.teal.shade900,
+                  ),
+                  onPressed: () {
+                    _playbackController?.submitPaceFeedback(PacingSignalType.promptJustRight);
+                    setState(() => _showPacePrompt = false);
+                  },
+                ),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.arrow_upward, size: 16, color: Colors.indigo),
+                  label: const Text('Too fast', style: TextStyle(fontSize: 12)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.indigo,
+                    side: const BorderSide(color: Colors.indigo),
+                  ),
+                  onPressed: () {
+                    _playbackController?.submitPaceFeedback(PacingSignalType.promptTooFast);
+                    setState(() => _showPacePrompt = false);
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -549,7 +700,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> {
                   backgroundColor: isPaused ? Colors.amber.shade800 : Colors.teal,
                   foregroundColor: Colors.white,
                 ),
-                onPressed: isPreparing
+                onPressed: (isPreparing || !_isEngineReady)
                     ? null
                     : () {
                         if (isPlaying || isGap) {

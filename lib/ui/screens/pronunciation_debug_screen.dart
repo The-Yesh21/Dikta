@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import '../../services/audio/temp_audio_file_manager.dart';
@@ -203,7 +204,7 @@ class _PronunciationDebugScreenState extends State<PronunciationDebugScreen> {
       );
 
       final tempWav = await _tempFileManager.writeTempWave(
-        samples: audio.samples,
+        samples: audio.samples ?? Float32List(0),
         sampleRate: audio.sampleRate,
         chunkIndex: 8888,
       );
