@@ -3,6 +3,7 @@ import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa_onnx;
 import 'ui/screens/benchmark_screen.dart';
 import 'ui/screens/dictation_test_screen.dart';
 import 'ui/screens/voice_audition_screen.dart';
+import 'ui/theme/dikta_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,10 +21,43 @@ class DictationApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Dictation App',
+      title: 'Dikta',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
+        scaffoldBackgroundColor: DiktaColors.parchmentBackground,
+        colorScheme: const ColorScheme.light(
+          primary: DiktaColors.burgundyPrimary,
+          onPrimary: DiktaColors.goldLight,
+          secondary: DiktaColors.goldAntique,
+          onSecondary: DiktaColors.burgundyDeep,
+          surface: DiktaColors.cardSurface,
+          onSurface: DiktaColors.inkPrimary,
+        ),
+        navigationBarTheme: NavigationBarThemeData(
+          backgroundColor: Colors.white,
+          indicatorColor: DiktaColors.goldParchment,
+          elevation: 0,
+          iconTheme: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return const IconThemeData(color: DiktaColors.burgundyPrimary);
+            }
+            return const IconThemeData(color: DiktaColors.inkMuted);
+          }),
+          labelTextStyle: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: DiktaColors.burgundyPrimary,
+              );
+            }
+            return const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: DiktaColors.inkMuted,
+            );
+          }),
+        ),
       ),
       home: const DictationHomeScreen(),
     );

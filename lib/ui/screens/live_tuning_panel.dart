@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../core/pacing/pacing_engine.dart';
+import '../theme/dikta_theme.dart';
 
 /// Live tuning panel for real-time adjustments of dictation pacing and voice parameters.
+/// Styled in the Dikta Archival Burgundy Crimson & Antique Gold palette.
 class LiveTuningPanel extends StatefulWidget {
   const LiveTuningPanel({
     super.key,
@@ -55,13 +57,25 @@ class _LiveTuningPanelState extends State<LiveTuningPanel> {
     final tempo = pe.currentTempo;
 
     return Scaffold(
+      backgroundColor: DiktaColors.parchmentBackground,
       appBar: AppBar(
-        title: const Text('Live Pacing & Voice Tuning'),
-        backgroundColor: Colors.teal,
+        title: const Text(
+          'Live Pacing & Voice Tuning',
+          style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.3),
+        ),
+        backgroundColor: DiktaColors.burgundyPrimary,
         foregroundColor: Colors.white,
+        elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1.0),
+          child: Container(
+            color: DiktaColors.goldBorder.withValues(alpha: 0.6),
+            height: 1.0,
+          ),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.restore),
+            icon: const Icon(Icons.restore, color: DiktaColors.goldLight),
             tooltip: 'Reset to Defaults',
             onPressed: () {
               pe.setSecondsPerGrapheme(ScriptType.latin, pe.config.secondsPerGraphemeLatin);
@@ -127,7 +141,7 @@ class _LiveTuningPanelState extends State<LiveTuningPanel> {
               _notifyChange();
             },
           ),
-          const Divider(height: 32),
+          const Divider(height: 28, color: DiktaColors.borderHairline),
           _buildSectionHeader('Gnani Speech Speed (API Parameter)'),
           _buildSlider(
             title: 'Gnani Speech Rate',
@@ -143,7 +157,7 @@ class _LiveTuningPanelState extends State<LiveTuningPanel> {
               _notifyChange();
             },
           ),
-          const Divider(height: 32),
+          const Divider(height: 28, color: DiktaColors.borderHairline),
           _buildSectionHeader('Additive Boundary Pauses'),
           _buildSlider(
             title: 'Comma Pause',
@@ -187,7 +201,7 @@ class _LiveTuningPanelState extends State<LiveTuningPanel> {
               _notifyChange();
             },
           ),
-          const Divider(height: 32),
+          const Divider(height: 28, color: DiktaColors.borderHairline),
           _buildSectionHeader('Fatigue & Rhythm Engine'),
           _buildSlider(
             title: 'Fatigue Decay Strength',
@@ -210,41 +224,79 @@ class _LiveTuningPanelState extends State<LiveTuningPanel> {
 
   Widget _buildLiveStatusCard(double tempo) {
     return Card(
-      elevation: 2,
-      color: Colors.teal.shade50,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      elevation: 0,
+      color: DiktaColors.goldParchment,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: DiktaColors.goldBorder, width: 1.5),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
             Column(
               children: [
-                const Text('Current Tempo', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                const Text(
+                  'Current Tempo',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: DiktaColors.inkSecondary,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 Text(
                   '${(tempo * 100).toStringAsFixed(1)}%',
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.teal),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: DiktaColors.burgundyPrimary,
+                  ),
                 ),
               ],
             ),
+            Container(height: 32, width: 1, color: DiktaColors.goldBorder),
             Column(
               children: [
-                const Text('Speech Rate', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                const Text(
+                  'Speech Rate',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: DiktaColors.inkSecondary,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 Text(
                   '${_speechRate.toStringAsFixed(2)}x',
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.teal),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: DiktaColors.burgundyPrimary,
+                  ),
                 ),
               ],
             ),
+            Container(height: 32, width: 1, color: DiktaColors.goldBorder),
             Column(
               children: [
-                const Text('Fatigue Factor', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                const Text(
+                  'Fatigue Factor',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: DiktaColors.inkSecondary,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 Text(
                   _fatigueStrength.toStringAsFixed(2),
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.teal),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: DiktaColors.burgundyPrimary,
+                  ),
                 ),
               ],
             ),
@@ -256,10 +308,28 @@ class _LiveTuningPanelState extends State<LiveTuningPanel> {
 
   Widget _buildSectionHeader(String title) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Text(
-        title,
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87),
+      padding: const EdgeInsets.only(top: 14, bottom: 6),
+      child: Row(
+        children: [
+          Container(
+            width: 3.5,
+            height: 14,
+            decoration: BoxDecoration(
+              color: DiktaColors.goldAntique,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            title.toUpperCase(),
+            style: const TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
+              color: DiktaColors.burgundyPrimary,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -276,30 +346,67 @@ class _LiveTuningPanelState extends State<LiveTuningPanel> {
   }) {
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4),
-      elevation: 1,
+      elevation: 0,
+      color: DiktaColors.cardSurface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: const BorderSide(color: DiktaColors.borderHairline),
+      ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                 Text(
-                  '${value.toStringAsFixed(2)} $unit',
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.teal, fontSize: 13),
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13.5,
+                    color: DiktaColors.inkPrimary,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: DiktaColors.goldParchment,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: DiktaColors.goldBorder),
+                  ),
+                  child: Text(
+                    '${value.toStringAsFixed(2)} $unit',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: DiktaColors.burgundyPrimary,
+                      fontSize: 12,
+                    ),
+                  ),
                 ),
               ],
             ),
-            Text(subtitle, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-            Slider(
-              value: value.clamp(min, max),
-              min: min,
-              max: max,
-              divisions: divisions,
-              activeColor: Colors.teal,
-              onChanged: onChanged,
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              style: const TextStyle(fontSize: 11, color: DiktaColors.inkMuted),
+            ),
+            SliderTheme(
+              data: SliderThemeData(
+                activeTrackColor: DiktaColors.burgundyPrimary,
+                inactiveTrackColor: DiktaColors.goldLight,
+                thumbColor: DiktaColors.goldAntique,
+                overlayColor: DiktaColors.goldAntique.withValues(alpha: 0.2),
+                valueIndicatorColor: DiktaColors.burgundyDeep,
+                trackHeight: 3.5,
+              ),
+              child: Slider(
+                value: value.clamp(min, max),
+                min: min,
+                max: max,
+                divisions: divisions,
+                onChanged: onChanged,
+              ),
             ),
           ],
         ),

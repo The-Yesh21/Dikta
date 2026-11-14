@@ -4,9 +4,11 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import '../../config/gnani_config.dart';
 import '../../services/tts/gnani_tts_engine.dart';
+import '../theme/dikta_theme.dart';
 
 /// Voice audition screen for auditioning, comparing, and selecting Gnani voices
 /// across English (en-IN), Hindi (hi-IN), and Kannada (kn-IN).
+/// Styled in the Dikta Archival Burgundy Crimson & Antique Gold palette.
 class VoiceAuditionScreen extends StatefulWidget {
   const VoiceAuditionScreen({
     super.key,
@@ -144,10 +146,22 @@ class _VoiceAuditionScreenState extends State<VoiceAuditionScreen> {
     final voices = GnaniVoiceCatalog.getVoicesForLanguage(_selectedLanguage);
 
     return Scaffold(
+      backgroundColor: DiktaColors.parchmentBackground,
       appBar: AppBar(
-        title: const Text('Gnani Voice Audition'),
-        backgroundColor: Colors.teal,
+        title: const Text(
+          'Gnani Voice Audition',
+          style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.3),
+        ),
+        backgroundColor: DiktaColors.burgundyPrimary,
         foregroundColor: Colors.white,
+        elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1.0),
+          child: Container(
+            color: DiktaColors.goldBorder.withValues(alpha: 0.6),
+            height: 1.0,
+          ),
+        ),
       ),
       body: Column(
         children: [
@@ -172,17 +186,41 @@ class _VoiceAuditionScreenState extends State<VoiceAuditionScreen> {
 
   Widget _buildLanguageAndSpeedBar() {
     return Container(
-      color: Colors.teal.shade50,
-      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: DiktaColors.goldParchment,
+        border: Border(
+          bottom: BorderSide(color: DiktaColors.goldBorder.withValues(alpha: 0.8), width: 1),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Text('Language: ', style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(width: 8),
+              Text(
+                'LANGUAGE',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 11,
+                  letterSpacing: 0.8,
+                  color: DiktaColors.burgundyPrimary,
+                ),
+              ),
+              const SizedBox(width: 10),
               ChoiceChip(
                 label: const Text('English (en-IN)'),
                 selected: _selectedLanguage == 'en-IN',
+                selectedColor: DiktaColors.burgundyPrimary,
+                backgroundColor: DiktaColors.cardSurface,
+                side: BorderSide(
+                  color: _selectedLanguage == 'en-IN' ? DiktaColors.burgundyPrimary : DiktaColors.goldBorder,
+                ),
+                labelStyle: TextStyle(
+                  fontSize: 12,
+                  fontWeight: _selectedLanguage == 'en-IN' ? FontWeight.bold : FontWeight.w500,
+                  color: _selectedLanguage == 'en-IN' ? Colors.white : DiktaColors.inkPrimary,
+                ),
                 onSelected: (val) {
                   if (val) {
                     setState(() {
@@ -195,6 +233,16 @@ class _VoiceAuditionScreenState extends State<VoiceAuditionScreen> {
               ChoiceChip(
                 label: const Text('Hindi (hi-IN)'),
                 selected: _selectedLanguage == 'hi-IN',
+                selectedColor: DiktaColors.burgundyPrimary,
+                backgroundColor: DiktaColors.cardSurface,
+                side: BorderSide(
+                  color: _selectedLanguage == 'hi-IN' ? DiktaColors.burgundyPrimary : DiktaColors.goldBorder,
+                ),
+                labelStyle: TextStyle(
+                  fontSize: 12,
+                  fontWeight: _selectedLanguage == 'hi-IN' ? FontWeight.bold : FontWeight.w500,
+                  color: _selectedLanguage == 'hi-IN' ? Colors.white : DiktaColors.inkPrimary,
+                ),
                 onSelected: (val) {
                   if (val) {
                     setState(() {
@@ -207,6 +255,16 @@ class _VoiceAuditionScreenState extends State<VoiceAuditionScreen> {
               ChoiceChip(
                 label: const Text('Kannada (kn-IN)'),
                 selected: _selectedLanguage == 'kn-IN',
+                selectedColor: DiktaColors.burgundyPrimary,
+                backgroundColor: DiktaColors.cardSurface,
+                side: BorderSide(
+                  color: _selectedLanguage == 'kn-IN' ? DiktaColors.burgundyPrimary : DiktaColors.goldBorder,
+                ),
+                labelStyle: TextStyle(
+                  fontSize: 12,
+                  fontWeight: _selectedLanguage == 'kn-IN' ? FontWeight.bold : FontWeight.w500,
+                  color: _selectedLanguage == 'kn-IN' ? Colors.white : DiktaColors.inkPrimary,
+                ),
                 onSelected: (val) {
                   if (val) {
                     setState(() {
@@ -217,11 +275,19 @@ class _VoiceAuditionScreenState extends State<VoiceAuditionScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Row(
             children: [
-              const Text('Voice Speed: ', style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(width: 8),
+              Text(
+                'VOICE SPEED',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 11,
+                  letterSpacing: 0.8,
+                  color: DiktaColors.burgundyPrimary,
+                ),
+              ),
+              const SizedBox(width: 10),
               for (final spd in [0.85, 1.0, 1.15])
                 Padding(
                   padding: const EdgeInsets.only(right: 6),
@@ -234,6 +300,18 @@ class _VoiceAuditionScreenState extends State<VoiceAuditionScreen> {
                               : '1.15x (Fast)',
                     ),
                     selected: _selectedSpeed == spd,
+                    selectedColor: DiktaColors.goldLight,
+                    backgroundColor: DiktaColors.cardSurface,
+                    checkmarkColor: DiktaColors.burgundyPrimary,
+                    side: BorderSide(
+                      color: _selectedSpeed == spd ? DiktaColors.goldAntique : DiktaColors.goldBorder,
+                      width: _selectedSpeed == spd ? 1.5 : 1.0,
+                    ),
+                    labelStyle: TextStyle(
+                      fontSize: 12,
+                      fontWeight: _selectedSpeed == spd ? FontWeight.bold : FontWeight.normal,
+                      color: _selectedSpeed == spd ? DiktaColors.burgundyPrimary : DiktaColors.inkSecondary,
+                    ),
                     onSelected: (val) {
                       if (val) {
                         setState(() {
@@ -253,23 +331,42 @@ class _VoiceAuditionScreenState extends State<VoiceAuditionScreen> {
   Widget _buildSentenceCard() {
     final text = sampleSentences[_selectedLanguage] ?? sampleSentences['en-IN']!;
     return Card(
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      elevation: 1,
-      color: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+      elevation: 0,
+      color: DiktaColors.cardSurface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: const BorderSide(color: DiktaColors.goldBorder, width: 1.2),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Sample Sentence for Audition:',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black54),
+            Row(
+              children: [
+                const Icon(Icons.format_quote, size: 16, color: DiktaColors.goldAntique),
+                const SizedBox(width: 6),
+                Text(
+                  'SAMPLE SENTENCE FOR AUDITION',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8,
+                    color: DiktaColors.burgundyMedium,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
               text,
-              style: const TextStyle(fontSize: 14, fontStyle: FontStyle.italic, color: Colors.black87),
+              style: const TextStyle(
+                fontSize: 13.5,
+                fontStyle: FontStyle.italic,
+                height: 1.4,
+                color: DiktaColors.inkPrimary,
+              ),
             ),
           ],
         ),
@@ -280,16 +377,19 @@ class _VoiceAuditionScreenState extends State<VoiceAuditionScreen> {
   Widget _buildErrorBanner() {
     return Container(
       width: double.infinity,
-      color: Colors.red.shade100,
+      decoration: BoxDecoration(
+        color: DiktaColors.burgundySoft,
+        border: Border.all(color: DiktaColors.crimsonAccent.withValues(alpha: 0.4)),
+      ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          const Icon(Icons.error_outline, color: Colors.red, size: 20),
+          const Icon(Icons.error_outline, color: DiktaColors.crimsonAccent, size: 20),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               _errorMessage!,
-              style: const TextStyle(color: Colors.red, fontSize: 13, fontWeight: FontWeight.bold),
+              style: const TextStyle(color: DiktaColors.burgundyDeep, fontSize: 13, fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -300,12 +400,22 @@ class _VoiceAuditionScreenState extends State<VoiceAuditionScreen> {
   Widget _buildLatencyIndicator() {
     return Container(
       width: double.infinity,
-      color: Colors.blue.shade50,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: DiktaColors.goldParchment,
+        border: Border(
+          bottom: BorderSide(color: DiktaColors.goldBorder.withValues(alpha: 0.5)),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
       child: Text(
         _lastLatencyText!,
         textAlign: TextAlign.center,
-        style: const TextStyle(color: Colors.blue, fontSize: 12, fontWeight: FontWeight.bold),
+        style: const TextStyle(
+          color: DiktaColors.goldDark,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.2,
+        ),
       ),
     );
   }
@@ -317,45 +427,53 @@ class _VoiceAuditionScreenState extends State<VoiceAuditionScreen> {
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
-      elevation: isPlaying ? 3 : 1,
+      elevation: isPlaying ? 2 : 0,
+      color: DiktaColors.cardSurface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
         side: isSelected
-            ? const BorderSide(color: Colors.teal, width: 2)
+            ? const BorderSide(color: DiktaColors.goldAntique, width: 2)
             : isPlaying
-                ? const BorderSide(color: Colors.blue, width: 2)
-                : BorderSide(color: Colors.grey.shade300),
+                ? const BorderSide(color: DiktaColors.crimsonAccent, width: 2)
+                : const BorderSide(color: DiktaColors.borderHairline, width: 1),
       ),
       child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
         leading: CircleAvatar(
-          backgroundColor: isFemale ? Colors.pink.shade100 : Colors.indigo.shade100,
+          backgroundColor: isFemale ? DiktaColors.burgundySoft : DiktaColors.goldLight,
           child: Icon(
             isFemale ? Icons.face_3 : Icons.face,
-            color: isFemale ? Colors.pink.shade800 : Colors.indigo.shade800,
+            color: isFemale ? DiktaColors.burgundyPrimary : DiktaColors.goldDark,
           ),
         ),
         title: Row(
           children: [
             Text(
               v.name,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 15.5,
+                color: DiktaColors.inkPrimary,
+              ),
             ),
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: isFemale ? Colors.pink.shade50 : Colors.indigo.shade50,
+                color: isFemale ? DiktaColors.burgundySoft : DiktaColors.goldParchment,
                 borderRadius: BorderRadius.circular(4),
                 border: Border.all(
-                  color: isFemale ? Colors.pink.shade200 : Colors.indigo.shade200,
+                  color: isFemale
+                      ? DiktaColors.burgundyPrimary.withValues(alpha: 0.3)
+                      : DiktaColors.goldBorder,
                 ),
               ),
               child: Text(
                 v.gender,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 10.5,
                   fontWeight: FontWeight.bold,
-                  color: isFemale ? Colors.pink.shade700 : Colors.indigo.shade700,
+                  color: isFemale ? DiktaColors.burgundyPrimary : DiktaColors.goldDark,
                 ),
               ),
             ),
@@ -363,29 +481,49 @@ class _VoiceAuditionScreenState extends State<VoiceAuditionScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: DiktaColors.parchmentBackground,
                 borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: Colors.grey.shade400),
+                border: Border.all(color: DiktaColors.borderHairline),
               ),
               child: Text(
                 v.model,
-                style: const TextStyle(fontSize: 11, color: Colors.black87),
+                style: const TextStyle(fontSize: 10.5, color: DiktaColors.inkSecondary),
               ),
             ),
             if (isSelected) ...[
               const Spacer(),
-              const Chip(
-                label: Text('Default', style: TextStyle(fontSize: 11, color: Colors.white)),
-                backgroundColor: Colors.teal,
-                padding: EdgeInsets.zero,
-                visualDensity: VisualDensity.compact,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: DiktaColors.goldAntique,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: DiktaColors.goldAntique.withValues(alpha: 0.25),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: const Text(
+                  'Default',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    letterSpacing: 0.3,
+                  ),
+                ),
               ),
             ],
           ],
         ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 4),
-          child: Text(v.description, style: const TextStyle(fontSize: 12)),
+          child: Text(
+            v.description,
+            style: const TextStyle(fontSize: 12, color: DiktaColors.inkMuted),
+          ),
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
@@ -394,12 +532,15 @@ class _VoiceAuditionScreenState extends State<VoiceAuditionScreen> {
               icon: isPlaying
                   ? (_isSynthesizing
                       ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.2,
+                            valueColor: AlwaysStoppedAnimation<Color>(DiktaColors.burgundyPrimary),
+                          ),
                         )
-                      : const Icon(Icons.stop_circle, color: Colors.red, size: 30))
-                  : const Icon(Icons.play_circle_fill, color: Colors.teal, size: 30),
+                      : const Icon(Icons.stop_circle, color: DiktaColors.crimsonAccent, size: 32))
+                  : const Icon(Icons.play_circle_fill, color: DiktaColors.burgundyPrimary, size: 32),
               tooltip: 'Audition voice',
               onPressed: () {
                 if (isPlaying) {
@@ -413,7 +554,8 @@ class _VoiceAuditionScreenState extends State<VoiceAuditionScreen> {
               },
             ),
             PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert),
+              icon: const Icon(Icons.more_vert, color: DiktaColors.inkSecondary),
+              color: DiktaColors.cardSurface,
               onSelected: (val) {
                 if (val == 'select') {
                   setState(() {
@@ -421,14 +563,26 @@ class _VoiceAuditionScreenState extends State<VoiceAuditionScreen> {
                   });
                   widget.onSelectVoice?.call(v.name, _selectedLanguage);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Selected "${v.name}" as default voice for $_selectedLanguage')),
+                    SnackBar(
+                      backgroundColor: DiktaColors.burgundyDeep,
+                      content: Text(
+                        'Selected "${v.name}" as default voice for $_selectedLanguage',
+                        style: const TextStyle(color: DiktaColors.goldLight),
+                      ),
+                    ),
                   );
                 }
               },
               itemBuilder: (context) => [
                 const PopupMenuItem(
                   value: 'select',
-                  child: Text('Set as Default Voice'),
+                  child: Row(
+                    children: [
+                      Icon(Icons.star_outline, size: 18, color: DiktaColors.goldAntique),
+                      SizedBox(width: 8),
+                      Text('Set as Default Voice', style: TextStyle(color: DiktaColors.inkPrimary)),
+                    ],
+                  ),
                 ),
               ],
             ),

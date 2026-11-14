@@ -12,6 +12,7 @@ import '../../core/spelling/word_speller.dart';
 import '../../services/audio/dictation_playback_controller.dart';
 import '../../services/storage/user_pacing_storage.dart';
 import '../../services/tts/gnani_tts_engine.dart';
+import '../theme/dikta_theme.dart';
 import 'live_tuning_panel.dart';
 import 'voice_audition_screen.dart';
 import 'writing_calibration_screen.dart';
@@ -229,7 +230,10 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
     HapticFeedback.lightImpact();
     if (_logs.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No session logs to copy yet.')),
+        const SnackBar(
+          backgroundColor: DiktaColors.burgundyPrimary,
+          content: Text('No session logs to copy yet.', style: TextStyle(color: DiktaColors.goldLight)),
+        ),
       );
       return;
     }
@@ -237,7 +241,10 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
     final table = DictationSessionLog.formatSessionTableMarkdown(_logs.reversed.toList());
     Clipboard.setData(ClipboardData(text: table));
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Copied ${_logs.length} chunk log rows (Markdown)!')),
+      SnackBar(
+        backgroundColor: DiktaColors.burgundyPrimary,
+        content: Text('Copied ${_logs.length} chunk log rows (Markdown)!', style: const TextStyle(color: DiktaColors.goldLight)),
+      ),
     );
   }
 
@@ -247,7 +254,8 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
     final spoken = speller.formatSpellingForSpeech(word);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Spelling: $word (${speller.formatSpellingForDisplay(word)})'),
+        backgroundColor: DiktaColors.burgundyPrimary,
+        content: Text('Spelling: $word (${speller.formatSpellingForDisplay(word)})', style: const TextStyle(color: DiktaColors.goldLight)),
         duration: const Duration(milliseconds: 2000),
       ),
     );
@@ -306,14 +314,8 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
 
   @override
   Widget build(BuildContext context) {
-    // Ink & Paper Palette (Unslop)
-    const backgroundParchment = Color(0xFFFBF9F5);
-    const inkSlate = Color(0xFF0F172A);
-    const inkMuted = Color(0xFF64748B);
-    const hairlineBorder = Color(0xFFE2E8F0);
-
     return Scaffold(
-      backgroundColor: backgroundParchment,
+      backgroundColor: DiktaColors.parchmentBackground,
       appBar: AppBar(
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -324,7 +326,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                 fontFamily: 'serif',
                 fontWeight: FontWeight.w700,
                 fontSize: 20,
-                color: inkSlate,
+                color: DiktaColors.burgundyPrimary,
                 letterSpacing: -0.5,
               ),
             ),
@@ -332,31 +334,35 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
               'Handwriting Dictation Companion',
               style: TextStyle(
                 fontSize: 11,
-                color: inkMuted,
+                color: DiktaColors.inkSecondary,
                 fontWeight: FontWeight.w500,
               ),
             ),
           ],
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: DiktaColors.cardSurface,
         elevation: 0,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(color: hairlineBorder, height: 1),
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(1),
+          child: Divider(
+            height: 1,
+            thickness: 1,
+            color: DiktaColors.goldBorder,
+          ),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.edit_note, color: inkSlate),
+            icon: const Icon(Icons.edit_note, color: DiktaColors.goldDark),
             tooltip: 'Calibrate Handwriting Speed',
             onPressed: _openCalibrationScreen,
           ),
           IconButton(
-            icon: const Icon(Icons.tune, color: inkSlate),
+            icon: const Icon(Icons.tune, color: DiktaColors.goldDark),
             tooltip: 'Live Tuning Panel',
             onPressed: _openLiveTuningPanel,
           ),
           IconButton(
-            icon: const Icon(Icons.record_voice_over_outlined, color: inkSlate),
+            icon: const Icon(Icons.record_voice_over_outlined, color: DiktaColors.goldDark),
             tooltip: 'Audition Voices',
             onPressed: () {
               Navigator.push(
@@ -412,9 +418,17 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
     final currentAlpha = _playbackController?.feedbackLoop.currentAlpha ?? 0.25;
     final userLpm = _pacingEngine.userLpm;
 
+    final dotColor = _playbackState == DictationPlaybackState.playingChunk
+        ? DiktaColors.burgundyPrimary
+        : _playbackState == DictationPlaybackState.waitingGap
+            ? DiktaColors.goldAntique
+            : _playbackState == DictationPlaybackState.preparing
+                ? DiktaColors.goldBright
+                : DiktaColors.inkMuted;
+
     return Container(
       width: double.infinity,
-      color: Colors.white,
+      color: DiktaColors.cardSurface,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -422,15 +436,17 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
           Row(
             children: [
               Container(
-                width: 8,
-                height: 8,
+                width: 9,
+                height: 9,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: _playbackState == DictationPlaybackState.playingChunk
-                      ? const Color(0xFF10B981)
-                      : _playbackState == DictationPlaybackState.waitingGap
-                          ? const Color(0xFF3B82F6)
-                          : const Color(0xFF64748B),
+                  color: dotColor,
+                  border: Border.all(
+                    color: _playbackState == DictationPlaybackState.playingChunk
+                        ? DiktaColors.burgundyMedium
+                        : Colors.transparent,
+                    width: 1.5,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -445,7 +461,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF334155),
+                  color: DiktaColors.inkPrimary,
                 ),
               ),
             ],
@@ -453,10 +469,11 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: isLocked ? const Color(0xFFECFDF5) : const Color(0xFFF1F5F9),
+              color: DiktaColors.goldParchment,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: isLocked ? const Color(0xFFA7F3D0) : const Color(0xFFCBD5E1),
+                color: DiktaColors.goldBorder,
+                width: 1.2,
               ),
             ),
             child: Row(
@@ -465,7 +482,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                 Icon(
                   isLocked ? Icons.lock_outline : Icons.speed,
                   size: 13,
-                  color: isLocked ? const Color(0xFF047857) : const Color(0xFF475569),
+                  color: isLocked ? DiktaColors.burgundyPrimary : DiktaColors.goldDark,
                 ),
                 const SizedBox(width: 4),
                 Text(
@@ -475,7 +492,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: isLocked ? const Color(0xFF047857) : const Color(0xFF334155),
+                    color: isLocked ? DiktaColors.burgundyPrimary : DiktaColors.goldDark,
                   ),
                 ),
               ],
@@ -495,14 +512,14 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: DiktaColors.cardSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: const [
+        border: Border.all(color: DiktaColors.goldBorder.withOpacity(0.6)),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x0A000000),
-            blurRadius: 10,
-            offset: Offset(0, 4),
+            color: DiktaColors.burgundyDeep.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -512,14 +529,23 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Signature: Notebook Ruled Left Margin Indicator Line
-              Container(
-                width: 5,
-                color: isGap
-                    ? const Color(0xFF2563EB)
-                    : isPlaying
-                        ? const Color(0xFF10B981)
-                        : const Color(0xFFF43F5E).withOpacity(0.5),
+              // Notebook Ruled Left Margin: Burgundy leather band + Antique gold ruler hairline
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 5,
+                    color: isGap
+                        ? DiktaColors.goldAntique
+                        : isPlaying
+                            ? DiktaColors.burgundyPrimary
+                            : DiktaColors.burgundyMedium.withOpacity(0.4),
+                  ),
+                  Container(
+                    width: 1.5,
+                    color: DiktaColors.goldBorder,
+                  ),
+                ],
               ),
               Expanded(
                 child: Padding(
@@ -539,20 +565,24 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 1.0,
-                              color: Color(0xFF94A3B8),
+                              color: DiktaColors.goldDark,
                             ),
                           ),
                           if (_currentChunk != null)
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF8FAFC),
+                                color: DiktaColors.goldParchment,
                                 borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                                border: Border.all(color: DiktaColors.goldBorder),
                               ),
                               child: Text(
                                 '${PacingEngine.countGraphemes(_currentChunk!.text)} letters · ${_currentChunk!.boundaryType.name}',
-                                style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: DiktaColors.burgundyPrimary,
+                                ),
                               ),
                             ),
                         ],
@@ -569,7 +599,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                             fontSize: 21,
                             fontWeight: FontWeight.w600,
                             height: 1.45,
-                            color: _currentChunk != null ? const Color(0xFF0F172A) : const Color(0xFF94A3B8),
+                            color: _currentChunk != null ? DiktaColors.inkPrimary : DiktaColors.inkMuted,
                             fontFamily: 'serif',
                           ),
                         ),
@@ -586,16 +616,16 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                               margin: const EdgeInsets.only(top: 14),
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF8FAFC),
+                                color: DiktaColors.goldParchment,
                                 borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                                border: Border.all(color: DiktaColors.goldBorder),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Row(
                                     children: [
-                                      const Icon(Icons.spellcheck, size: 14, color: Color(0xFF2563EB)),
+                                      const Icon(Icons.spellcheck, size: 14, color: DiktaColors.burgundyPrimary),
                                       const SizedBox(width: 6),
                                       const Text(
                                         'DIFFICULT WORDS SPELLED OUT',
@@ -603,13 +633,13 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                                           fontSize: 10,
                                           fontWeight: FontWeight.w700,
                                           letterSpacing: 0.8,
-                                          color: Color(0xFF1E40AF),
+                                          color: DiktaColors.burgundyPrimary,
                                         ),
                                       ),
                                       const Spacer(),
                                       Text(
                                         '${diffWords.length} ${diffWords.length == 1 ? 'word' : 'words'}',
-                                        style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+                                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: DiktaColors.goldDark),
                                       ),
                                     ],
                                   ),
@@ -624,12 +654,12 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                                         decoration: BoxDecoration(
                                           color: Colors.white,
                                           borderRadius: BorderRadius.circular(8),
-                                          border: Border.all(color: const Color(0xFFCBD5E1)),
-                                          boxShadow: const [
+                                          border: Border.all(color: DiktaColors.goldBorder),
+                                          boxShadow: [
                                             BoxShadow(
-                                              color: Color(0x08000000),
+                                              color: DiktaColors.goldAntique.withOpacity(0.08),
                                               blurRadius: 4,
-                                              offset: Offset(0, 1),
+                                              offset: const Offset(0, 1),
                                             ),
                                           ],
                                         ),
@@ -641,15 +671,16 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                                               style: const TextStyle(
                                                 fontSize: 12,
                                                 fontWeight: FontWeight.w700,
-                                                color: Color(0xFF0F172A),
+                                                color: DiktaColors.inkPrimary,
                                               ),
                                             ),
                                             const SizedBox(width: 8),
                                             Container(
                                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                               decoration: BoxDecoration(
-                                                color: const Color(0xFFEFF6FF),
+                                                color: DiktaColors.goldLight,
                                                 borderRadius: BorderRadius.circular(4),
+                                                border: Border.all(color: DiktaColors.goldBorder.withOpacity(0.5)),
                                               ),
                                               child: Text(
                                                 displaySpelling,
@@ -657,7 +688,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                                                   fontSize: 11,
                                                   fontFamily: 'monospace',
                                                   fontWeight: FontWeight.w700,
-                                                  color: Color(0xFF1D4ED8),
+                                                  color: DiktaColors.burgundyPrimary,
                                                   letterSpacing: 0.6,
                                                 ),
                                               ),
@@ -668,7 +699,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                                               borderRadius: BorderRadius.circular(12),
                                               child: const Padding(
                                                 padding: EdgeInsets.all(2),
-                                                child: Icon(Icons.volume_up_rounded, size: 15, color: Color(0xFF2563EB)),
+                                                child: Icon(Icons.volume_up_rounded, size: 15, color: DiktaColors.goldDark),
                                               ),
                                             ),
                                           ],
@@ -702,7 +733,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                             Expanded(
                               child: Text(
                                 'Speaking phrase at ${_pacingEngine.gnaniSpeechRate.toStringAsFixed(2)}x dictation cadence...',
-                                style: const TextStyle(fontSize: 12, color: Color(0xFF059669), fontWeight: FontWeight.w600),
+                                style: const TextStyle(fontSize: 12, color: DiktaColors.burgundyPrimary, fontWeight: FontWeight.w600),
                               ),
                             ),
                           ],
@@ -713,19 +744,19 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                             SizedBox(
                               width: 12,
                               height: 12,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF3B82F6)),
+                              child: CircularProgressIndicator(strokeWidth: 2, color: DiktaColors.goldAntique),
                             ),
                             const SizedBox(width: 8),
                             Text(
                               'Synthesizing next phrase via Gnani...',
-                              style: TextStyle(fontSize: 12, color: Color(0xFF2563EB), fontWeight: FontWeight.w500),
+                              style: TextStyle(fontSize: 12, color: DiktaColors.inkSecondary, fontWeight: FontWeight.w500),
                             ),
                           ],
                         ),
                       ] else if (isPaused) ...[
                         const Text(
                           'Playback paused',
-                          style: TextStyle(fontSize: 12, color: Color(0xFFD97706), fontWeight: FontWeight.w600),
+                          style: TextStyle(fontSize: 12, color: DiktaColors.goldDark, fontWeight: FontWeight.w600),
                         ),
                       ],
                     ],
@@ -744,18 +775,18 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: DiktaColors.cardSurface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: DiktaColors.borderHairline),
       ),
       child: Column(
         children: [
-          // Speech Speed Row (Dictation needs to be less)
+          // Speech Speed Row (Burgundy pills)
           Row(
             children: [
-              const Icon(Icons.record_voice_over, size: 14, color: Color(0xFF64748B)),
+              const Icon(Icons.record_voice_over, size: 14, color: DiktaColors.goldDark),
               const SizedBox(width: 6),
-              const Text('Voice Speed:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF475569))),
+              const Text('Voice Speed:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: DiktaColors.inkSecondary)),
               const Spacer(),
               _buildSpeedPill(0.80, '0.80x (Slow)'),
               const SizedBox(width: 6),
@@ -766,13 +797,13 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
               _buildSpeedPill(1.00, '1.00x'),
             ],
           ),
-          const Divider(height: 16, color: Color(0xFFF1F5F9)),
-          // Gap Pause Length Row (Gap between parts needs to be less)
+          const Divider(height: 16, color: DiktaColors.borderHairline),
+          // Gap Pause Length Row (Gold pills)
           Row(
             children: [
-              const Icon(Icons.hourglass_bottom, size: 14, color: Color(0xFF64748B)),
+              const Icon(Icons.hourglass_bottom, size: 14, color: DiktaColors.goldDark),
               const SizedBox(width: 6),
-              const Text('Pause Between Parts:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF475569))),
+              const Text('Pause Between Parts:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: DiktaColors.inkSecondary)),
               const Spacer(),
               _buildGapPill(4.0, 'Tight (4s)'),
               const SizedBox(width: 6),
@@ -781,11 +812,11 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
               _buildGapPill(8.0, 'Relaxed (8s)'),
             ],
           ),
-          const Divider(height: 16, color: Color(0xFFF1F5F9)),
+          const Divider(height: 16, color: DiktaColors.borderHairline),
           // Difficult Words Spelling Toggle
           Row(
             children: [
-              const Icon(Icons.spellcheck, size: 14, color: Color(0xFF2563EB)),
+              const Icon(Icons.spellcheck, size: 14, color: DiktaColors.burgundyPrimary),
               const SizedBox(width: 6),
               const Expanded(
                 child: Column(
@@ -793,18 +824,19 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                   children: [
                     Text(
                       'Spell Difficult Words',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: DiktaColors.inkPrimary),
                     ),
                     Text(
                       'Spells long words (≥10 letters) syllable-by-syllable',
-                      style: TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+                      style: TextStyle(fontSize: 10, color: DiktaColors.inkMuted),
                     ),
                   ],
                 ),
               ),
               Switch.adaptive(
                 value: _spellDifficultWords,
-                activeColor: const Color(0xFF2563EB),
+                activeColor: DiktaColors.burgundyPrimary,
+                activeTrackColor: DiktaColors.goldLight,
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 onChanged: (val) {
                   HapticFeedback.lightImpact();
@@ -834,15 +866,18 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+          color: isSelected ? DiktaColors.burgundyPrimary : DiktaColors.parchmentBackground,
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? DiktaColors.burgundyPrimary : DiktaColors.borderHairline,
+          ),
         ),
         child: Text(
           label,
           style: TextStyle(
             fontSize: 10,
             fontWeight: FontWeight.w700,
-            color: isSelected ? Colors.white : const Color(0xFF475569),
+            color: isSelected ? DiktaColors.goldLight : DiktaColors.inkSecondary,
           ),
         ),
       ),
@@ -862,22 +897,25 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF2563EB) : const Color(0xFFF1F5F9),
+          color: isSelected ? DiktaColors.goldAntique : DiktaColors.parchmentBackground,
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? DiktaColors.goldDark : DiktaColors.borderHairline,
+          ),
         ),
         child: Text(
           label,
           style: TextStyle(
             fontSize: 10,
             fontWeight: FontWeight.w700,
-            color: isSelected ? Colors.white : const Color(0xFF475569),
+            color: isSelected ? Colors.white : DiktaColors.inkSecondary,
           ),
         ),
       ),
     );
   }
 
-  /// Quiet, tactile dictation controls
+  /// Quiet, tactile dictation controls with velvet burgundy and antique gold styling
   Widget _buildControlsSection() {
     final isPlaying = _playbackState == DictationPlaybackState.playingChunk;
     final isPreparing = _playbackState == DictationPlaybackState.preparing;
@@ -893,21 +931,22 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
           children: [
             if (isActive) ...[
               IconButton.outlined(
-                icon: const Icon(Icons.replay_10, size: 22),
+                icon: const Icon(Icons.replay_10, size: 22, color: DiktaColors.burgundyPrimary),
                 tooltip: 'Rewind to previous chunk',
                 onPressed: () {
                   HapticFeedback.lightImpact();
                   _playbackController?.previousChunk();
                 },
                 style: IconButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFFCBD5E1)),
+                  side: const BorderSide(color: DiktaColors.goldBorder),
+                  backgroundColor: Colors.white,
                   padding: const EdgeInsets.all(12),
                 ),
               ),
               const SizedBox(width: 16),
             ],
 
-            // Big Center Play/Pause Capsule
+            // Big Center Play/Pause Capsule: Velvet Burgundy with Glowing Antique Gold Icon & Text
             FilledButton.icon(
               icon: Icon(
                 isPlaying || isGap
@@ -916,6 +955,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                         ? Icons.play_arrow
                         : Icons.play_arrow,
                 size: 26,
+                color: DiktaColors.goldBright,
               ),
               label: Text(
                 isPlaying || isGap
@@ -923,14 +963,20 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                     : isPaused
                         ? 'Resume'
                         : 'Start Dictation',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: DiktaColors.goldLight,
+                  letterSpacing: 0.3,
+                ),
               ),
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF0F172A),
-                foregroundColor: Colors.white,
+                backgroundColor: DiktaColors.burgundyPrimary,
+                foregroundColor: DiktaColors.goldLight,
                 padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
-                elevation: 0,
+                elevation: 3,
+                shadowColor: DiktaColors.burgundyDeep.withOpacity(0.4),
               ),
               onPressed: (isPreparing || !_isEngineReady)
                   ? null
@@ -949,14 +995,15 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
             if (isActive) ...[
               const SizedBox(width: 16),
               IconButton.outlined(
-                icon: const Icon(Icons.stop, color: Color(0xFFEF4444), size: 22),
+                icon: const Icon(Icons.stop, color: DiktaColors.crimsonAccent, size: 22),
                 tooltip: 'Stop Dictation',
                 onPressed: () {
                   HapticFeedback.lightImpact();
                   _playbackController?.stop();
                 },
                 style: IconButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFFFECACA)),
+                  side: BorderSide(color: DiktaColors.crimsonAccent.withOpacity(0.4)),
+                  backgroundColor: DiktaColors.burgundySoft,
                   padding: const EdgeInsets.all(12),
                 ),
               ),
@@ -1014,10 +1061,10 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
     String? tooltip,
   }) {
     final btn = OutlinedButton.icon(
-      icon: Icon(icon, size: 15, color: const Color(0xFF334155)),
-      label: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF334155))),
+      icon: Icon(icon, size: 15, color: DiktaColors.burgundyPrimary),
+      label: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: DiktaColors.inkPrimary)),
       style: OutlinedButton.styleFrom(
-        side: const BorderSide(color: Color(0xFFE2E8F0)),
+        side: const BorderSide(color: DiktaColors.goldBorder),
         backgroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -1039,9 +1086,9 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: DiktaColors.goldParchment,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFCBD5E1)),
+        border: Border.all(color: DiktaColors.goldBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1051,16 +1098,16 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
             children: [
               const Row(
                 children: [
-                  Icon(Icons.tune, size: 16, color: Color(0xFF0F172A)),
+                  Icon(Icons.tune, size: 16, color: DiktaColors.burgundyPrimary),
                   SizedBox(width: 8),
                   Text(
                     'Pace check: Is the dictation comfortable for writing?',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0F172A)),
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: DiktaColors.burgundyPrimary),
                   ),
                 ],
               ),
               IconButton(
-                icon: const Icon(Icons.close, size: 16, color: Color(0xFF94A3B8)),
+                icon: const Icon(Icons.close, size: 16, color: DiktaColors.inkMuted),
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
                 onPressed: () => setState(() => _showPacePrompt = false),
@@ -1077,26 +1124,28 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                     setState(() => _showPacePrompt = false);
                   },
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFF94A3B8)),
+                    side: const BorderSide(color: DiktaColors.goldBorder),
+                    backgroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
-                  child: const Text('Too Slow\n(Speed up)', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF0F172A))),
+                  child: const Text('Too Slow\n(Speed up)', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: DiktaColors.inkPrimary)),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: FilledButton.tonal(
+                child: FilledButton(
                   onPressed: () {
                     _playbackController?.submitPaceFeedback(PacingSignalType.promptJustRight);
                     setState(() => _showPacePrompt = false);
                   },
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFFE2E8F0),
+                    backgroundColor: DiktaColors.burgundyPrimary,
+                    foregroundColor: DiktaColors.goldLight,
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
-                  child: const Text('Just Right\n(Keep pace)', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                  child: const Text('Just Right\n(Keep pace)', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: DiktaColors.goldLight)),
                 ),
               ),
               const SizedBox(width: 8),
@@ -1107,11 +1156,12 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                     setState(() => _showPacePrompt = false);
                   },
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFF94A3B8)),
+                    side: const BorderSide(color: DiktaColors.goldBorder),
+                    backgroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
-                  child: const Text('Too Fast\n(More time)', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF0F172A))),
+                  child: const Text('Too Fast\n(More time)', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: DiktaColors.inkPrimary)),
                 ),
               ),
             ],
@@ -1128,9 +1178,9 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: DiktaColors.cardSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: DiktaColors.borderHairline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1150,20 +1200,21 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
           // Voice Selector Row
           Row(
             children: [
-              const Text('Voice:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
+              const Text('Voice:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: DiktaColors.inkSecondary)),
               const SizedBox(width: 10),
               Expanded(
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    border: Border.all(color: DiktaColors.goldBorder),
                   ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
                       value: voices.any((v) => v.name == _currentVoice) ? _currentVoice : voices.first.name,
                       isExpanded: true,
-                      style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A), fontWeight: FontWeight.w600),
+                      style: const TextStyle(fontSize: 13, color: DiktaColors.inkPrimary, fontWeight: FontWeight.w600),
                       items: voices.map((v) {
                         return DropdownMenuItem<String>(
                           value: v.name,
@@ -1195,11 +1246,18 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                 return Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: FilterChip(
-                    label: Text(sample['title']!, style: const TextStyle(fontSize: 11)),
+                    label: Text(
+                      sample['title']!,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                        color: isSelected ? DiktaColors.burgundyPrimary : DiktaColors.inkSecondary,
+                      ),
+                    ),
                     selected: isSelected,
-                    selectedColor: const Color(0xFFE2E8F0),
-                    backgroundColor: const Color(0xFFF8FAFC),
-                    side: BorderSide(color: isSelected ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0)),
+                    selectedColor: DiktaColors.goldLight,
+                    backgroundColor: DiktaColors.parchmentBackground,
+                    side: BorderSide(color: isSelected ? DiktaColors.burgundyPrimary : DiktaColors.borderHairline),
                     showCheckmark: false,
                     onSelected: (selected) {
                       if (selected) {
@@ -1218,23 +1276,24 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
           TextField(
             controller: _textController,
             maxLines: 5,
-            style: const TextStyle(fontSize: 14, height: 1.5, color: Color(0xFF0F172A)),
+            style: const TextStyle(fontSize: 14, height: 1.5, color: DiktaColors.inkPrimary),
             decoration: InputDecoration(
               hintText: 'Paste or type notes to dictate...',
+              hintStyle: const TextStyle(color: DiktaColors.inkMuted),
               filled: true,
-              fillColor: const Color(0xFFF8FAFC),
+              fillColor: DiktaColors.parchmentBackground,
               contentPadding: const EdgeInsets.all(12),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                borderSide: const BorderSide(color: DiktaColors.borderHairline),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                borderSide: const BorderSide(color: DiktaColors.borderHairline),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: Color(0xFF0F172A)),
+                borderSide: const BorderSide(color: DiktaColors.burgundyPrimary, width: 1.5),
               ),
             ),
           ),
@@ -1253,15 +1312,18 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
           padding: const EdgeInsets.symmetric(vertical: 8),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+            color: isSelected ? DiktaColors.burgundyPrimary : DiktaColors.goldParchment,
             borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isSelected ? DiktaColors.burgundyPrimary : DiktaColors.borderHairline,
+            ),
           ),
           child: Text(
             label,
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: isSelected ? Colors.white : const Color(0xFF475569),
+              color: isSelected ? DiktaColors.goldLight : DiktaColors.inkSecondary,
             ),
           ),
         ),
@@ -1273,47 +1335,47 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
   Widget _buildSessionLogSection() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: DiktaColors.cardSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: DiktaColors.borderHairline),
       ),
       child: Column(
         children: [
           ListTile(
             title: Text(
               'Session Audit Log (${_logs.length} phrases)',
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: DiktaColors.burgundyPrimary),
             ),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (_logs.isNotEmpty)
                   IconButton(
-                    icon: const Icon(Icons.copy, size: 16, color: Color(0xFF64748B)),
+                    icon: const Icon(Icons.copy, size: 16, color: DiktaColors.goldDark),
                     tooltip: 'Copy Markdown Table',
                     onPressed: _copySessionLogsToClipboard,
                   ),
                 Icon(
                   _isLogsExpanded ? Icons.expand_less : Icons.expand_more,
-                  color: const Color(0xFF64748B),
+                  color: DiktaColors.goldDark,
                 ),
               ],
             ),
             onTap: () => setState(() => _isLogsExpanded = !_isLogsExpanded),
           ),
           if (_isLogsExpanded) ...[
-            const Divider(height: 1, color: Color(0xFFE2E8F0)),
+            const Divider(height: 1, color: DiktaColors.borderHairline),
             if (_logs.isEmpty)
               const Padding(
                 padding: EdgeInsets.all(20),
-                child: Text('No phrases dictated yet in this session.', style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
+                child: Text('No phrases dictated yet in this session.', style: TextStyle(fontSize: 12, color: DiktaColors.inkMuted)),
               )
             else
               ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: _logs.length,
-                separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                separatorBuilder: (_, __) => const Divider(height: 1, color: DiktaColors.borderHairline),
                 itemBuilder: (context, index) {
                   final log = _logs[index];
                   return Padding(
@@ -1323,13 +1385,13 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                       children: [
                         CircleAvatar(
                           radius: 10,
-                          backgroundColor: log.isFromCache ? const Color(0xFFFEF3C7) : const Color(0xFFE2E8F0),
+                          backgroundColor: log.isFromCache ? DiktaColors.goldLight : DiktaColors.burgundySoft,
                           child: Text(
                             '${log.chunkIndex + 1}',
                             style: TextStyle(
                               fontSize: 9,
                               fontWeight: FontWeight.bold,
-                              color: log.isFromCache ? const Color(0xFF92400E) : const Color(0xFF334155),
+                              color: log.isFromCache ? DiktaColors.goldDark : DiktaColors.burgundyPrimary,
                             ),
                           ),
                         ),
@@ -1340,12 +1402,12 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                             children: [
                               Text(
                                 log.text,
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: DiktaColors.inkPrimary),
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 '${log.graphemes} letters · Speech: ${log.speechDurationSeconds.toStringAsFixed(1)}s · Gap: ${log.gapSeconds.toStringAsFixed(1)}s · ${log.isFromCache ? '⚡ Cache' : '☁️ API'}',
-                                style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+                                style: const TextStyle(fontSize: 10, color: DiktaColors.inkSecondary),
                               ),
                             ],
                           ),
@@ -1364,21 +1426,21 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
   Widget _buildErrorBanner() {
     return Container(
       width: double.infinity,
-      color: const Color(0xFFFEF2F2),
+      color: DiktaColors.burgundySoft,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          const Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 16),
+          const Icon(Icons.error_outline, color: DiktaColors.crimsonAccent, size: 16),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               _errorMessage ?? 'An error occurred',
-              style: const TextStyle(fontSize: 12, color: Color(0xFFB91C1C), fontWeight: FontWeight.w500),
+              style: const TextStyle(fontSize: 12, color: DiktaColors.burgundyPrimary, fontWeight: FontWeight.w500),
             ),
           ),
           TextButton(
             onPressed: () => _playbackController?.retryCurrentChunk(),
-            child: const Text('Retry', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFDC2626))),
+            child: const Text('Retry', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: DiktaColors.crimsonAccent)),
           ),
         ],
       ),
@@ -1404,9 +1466,9 @@ class _SmoothGapCountdown extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF0FDF4),
+        color: DiktaColors.goldParchment,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFBBF7D0)),
+        border: Border.all(color: DiktaColors.goldBorder),
       ),
       child: Row(
         children: [
@@ -1424,8 +1486,8 @@ class _SmoothGapCountdown extends StatelessWidget {
                     return CircularProgressIndicator(
                       value: (1.0 - val).clamp(0.0, 1.0),
                       strokeWidth: 2.5,
-                      backgroundColor: const Color(0xFFDCFCE7),
-                      color: const Color(0xFF16A34A),
+                      backgroundColor: DiktaColors.goldLight,
+                      color: DiktaColors.goldAntique,
                     );
                   },
                 ),
@@ -1446,12 +1508,12 @@ class _SmoothGapCountdown extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF166534),
+                        color: DiktaColors.burgundyPrimary,
                       ),
                     ),
                     const Text(
                       'Tap "Done" when finished to advance faster',
-                      style: TextStyle(fontSize: 11, color: Color(0xFF15803D)),
+                      style: TextStyle(fontSize: 11, color: DiktaColors.inkSecondary),
                     ),
                   ],
                 );
@@ -1461,17 +1523,17 @@ class _SmoothGapCountdown extends StatelessWidget {
           FilledButton(
             onPressed: onDone,
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF16A34A),
-              foregroundColor: Colors.white,
+              backgroundColor: DiktaColors.burgundyPrimary,
+              foregroundColor: DiktaColors.goldLight,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('Done', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                Text('Done', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: DiktaColors.goldLight)),
                 SizedBox(width: 4),
-                Icon(Icons.arrow_forward, size: 14),
+                Icon(Icons.arrow_forward, size: 14, color: DiktaColors.goldBright),
               ],
             ),
           ),
@@ -1482,6 +1544,7 @@ class _SmoothGapCountdown extends StatelessWidget {
 }
 
 /// Catchy, Smooth Audio Equalizer Bars animation for active speech playback.
+/// Styled in gilded antique gold gradients.
 class _CatchyAudioVisualizer extends StatefulWidget {
   const _CatchyAudioVisualizer();
 
@@ -1500,11 +1563,6 @@ class _CatchyAudioVisualizerState extends State<_CatchyAudioVisualizer>
       vsync: this,
       duration: const Duration(milliseconds: 600),
     )..repeat(reverse: true);
-  }
-
-  @override
-  void disposeBack() {
-    _controller.dispose();
   }
 
   @override
@@ -1540,7 +1598,7 @@ class _CatchyAudioVisualizerState extends State<_CatchyAudioVisualizer>
                 gradient: const LinearGradient(
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
-                  colors: [Color(0xFF059669), Color(0xFF34D399)],
+                  colors: [DiktaColors.goldDark, DiktaColors.goldBright],
                 ),
               ),
             );
