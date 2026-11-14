@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import '../../services/tts/kokoro_engine.dart';
 import '../../services/tts/model_locator.dart';
 import '../../services/tts/tts_benchmark_runner.dart';
 import '../theme/dikta_theme.dart';
@@ -194,8 +193,8 @@ class _BenchmarkScreenState extends State<BenchmarkScreen>
             Row(
               children: [
                 Icon(
-                  hasModel ? Icons.check_circle : Icons.warning_amber_rounded,
-                  color: hasModel ? DiktaColors.goldDark : DiktaColors.crimsonAccent,
+                  hasModel ? Icons.layers_outlined : Icons.folder_open_outlined,
+                  color: hasModel ? DiktaColors.burgundyPrimary : DiktaColors.goldDark,
                   size: 20,
                 ),
                 const SizedBox(width: 8),
@@ -394,7 +393,7 @@ class _BenchmarkScreenState extends State<BenchmarkScreen>
                             '${r.realTimeFactor.toStringAsFixed(2)}x',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
-                              color: r.realTimeFactor < 1.0 ? DiktaColors.successGreen : DiktaColors.crimsonAccent,
+                              color: r.realTimeFactor < 1.0 ? DiktaColors.burgundyPrimary : DiktaColors.goldDark,
                             ),
                           ),
                         ),

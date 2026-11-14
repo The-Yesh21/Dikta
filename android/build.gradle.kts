@@ -19,6 +19,24 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
+subprojects {
+    if (project.name != "app") {
+        afterEvaluate {
+            val android = project.extensions.findByName("android")
+            if (android != null) {
+                try {
+                    val setCompileSdk = android.javaClass.methods.firstOrNull {
+                        (it.name == "setCompileSdkVersion" || it.name == "compileSdkVersion" || it.name == "setCompileSdk") &&
+                            it.parameterTypes.size == 1 &&
+                            (it.parameterTypes[0] == Int::class.javaPrimitiveType || it.parameterTypes[0] == java.lang.Integer::class.java)
+                    }
+                    setCompileSdk?.invoke(android, 36)
+                } catch (_: Throwable) {}
+            }
+        }
+    }
+}
+
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }

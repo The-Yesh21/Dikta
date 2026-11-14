@@ -1,13 +1,15 @@
 import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../config/gnani_config.dart';
 import '../../config/pacing_config.dart';
 import '../../core/chunker/chunk_info.dart';
 import '../../core/chunker/text_chunker.dart';
+import '../../core/document/document_item.dart';
+import '../../core/document/pdf_document_parser.dart';
 import '../../core/pacing/pacing_engine.dart';
-import '../../core/pacing/pacing_feedback_loop.dart';
 import '../../core/spelling/word_speller.dart';
 import '../../services/audio/dictation_playback_controller.dart';
 import '../../services/storage/user_pacing_storage.dart';
@@ -42,13 +44,12 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
   StreamSubscription<DictationSessionLog>? _logSub;
   StreamSubscription<Duration>? _gapSub;
   StreamSubscription<String?>? _errorSub;
-  StreamSubscription<bool>? _pacePromptSub;
 
   // Dedicated ValueNotifiers for jitter-free, 120fps smooth gap timer animation
   final ValueNotifier<double> _gapProgressNotifier = ValueNotifier<double>(0.0);
   final ValueNotifier<Duration> _gapRemainingNotifier = ValueNotifier<Duration>(Duration.zero);
 
-  bool _showPacePrompt = false;
+  bool _isParsingPdf = false;
   bool _isLogsExpanded = false;
   bool _spellDifficultWords = true;
 
@@ -157,14 +158,6 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
       }
     });
 
-    _pacePromptSub = _playbackController!.onPacePromptRequested.listen((shouldShow) {
-      if (mounted) {
-        setState(() {
-          _showPacePrompt = shouldShow;
-        });
-      }
-    });
-
     setState(() {
       _isEngineReady = true;
       _statusMessage = 'Gnani Cloud Engine Ready';
@@ -177,7 +170,6 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
     _logSub?.cancel();
     _gapSub?.cancel();
     _errorSub?.cancel();
-    _pacePromptSub?.cancel();
     _gapProgressNotifier.dispose();
     _gapRemainingNotifier.dispose();
     _playbackController?.dispose();
@@ -312,6 +304,148 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
     );
   }
 
+  Future<void> _handleUploadPdf() async {
+    HapticFeedback.lightImpact();
+
+    try {
+      final FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+        withData: true,
+      );
+
+      if (result == null || result.files.isEmpty) {
+        return;
+      }
+
+      setState(() => _isParsingPdf = true);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: DiktaColors.burgundyPrimary,
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: DiktaColors.goldBright,
+                  ),
+                ),
+                SizedBox(width: 10),
+                Text(
+                  'Reading and analyzing PDF note structure...',
+                  style: TextStyle(color: DiktaColors.goldLight),
+                ),
+              ],
+            ),
+            duration: Duration(milliseconds: 1500),
+          ),
+        );
+      }
+
+      final file = result.files.first;
+      List<DocumentItem> items = [];
+
+      if (file.bytes != null && file.bytes!.isNotEmpty) {
+        items = PdfDocumentParser.parseBytes(file.bytes!);
+      } else if (file.path != null && file.path!.isNotEmpty) {
+        items = await PdfDocumentParser.parseFile(file.path!);
+      }
+
+      if (items.isEmpty) {
+        if (mounted) {
+          setState(() => _isParsingPdf = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              backgroundColor: DiktaColors.crimsonAccent,
+              content: Text(
+                'No readable text or notes found in the selected PDF.',
+                style: TextStyle(color: Colors.white),
+              ),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        return;
+      }
+
+      // Automatically detect if content is predominantly Kannada or English
+      final detectedLangCode = PdfDocumentParser.detectLanguage(items);
+      final targetLang = detectedLangCode == 'kn' ? 'kn-IN' : 'en-IN';
+
+      // Load structured text with heading and diagram markers
+      final structuredText = items
+          .map((item) => item.spokenText.trim())
+          .where((text) => text.isNotEmpty)
+          .join('\n\n');
+
+      // Stop any existing playback
+      if (_playbackState == DictationPlaybackState.playingChunk ||
+          _playbackState == DictationPlaybackState.waitingGap ||
+          _playbackState == DictationPlaybackState.paused) {
+        await _playbackController?.stop();
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _isParsingPdf = false;
+        _textController.text = structuredText;
+        _currentLanguage = targetLang;
+
+        final voices = GnaniVoiceCatalog.getVoicesForLanguage(targetLang);
+        if (targetLang == 'kn-IN') {
+          _currentVoice = 'Saanvi';
+        } else {
+          _currentVoice = voices.isNotEmpty ? voices.first.name : 'Shivani';
+        }
+
+        _playbackController?.voice = _currentVoice;
+        _playbackController?.language = _currentLanguage;
+
+        // Reset chunker and playback state for the new document
+        final chunker = TextChunker(config: PacingConfig.defaultConfig);
+        final chunks = chunker.chunk(structuredText);
+        _totalChunks = chunks.length;
+        _currentChunkIndex = 0;
+        _currentChunk = chunks.isNotEmpty ? chunks.first : null;
+        _logs.clear();
+        _errorMessage = null;
+      });
+
+      final headingCount = items.where((it) => it.itemType == DocumentItemType.heading).length;
+      final diagramCount = items.where((it) => it.itemType == DocumentItemType.diagramPlaceholder).length;
+      final langLabel = targetLang == 'kn-IN' ? 'Kannada' : 'English';
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: DiktaColors.burgundyPrimary,
+            content: Text(
+              'PDF loaded ($langLabel): $headingCount headings, $diagramCount diagrams, $_totalChunks chunks ready!',
+              style: const TextStyle(color: DiktaColors.goldLight),
+            ),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isParsingPdf = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: DiktaColors.crimsonAccent,
+            content: Text('Error parsing PDF: $e', style: const TextStyle(color: Colors.white)),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -388,7 +522,6 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
       ),
       body: Column(
         children: [
-          _buildPacingStatusBar(),
           if (_errorMessage != null) _buildErrorBanner(),
           Expanded(
             child: ListView(
@@ -400,101 +533,9 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                 const SizedBox(height: 16),
                 _buildControlsSection(),
                 const SizedBox(height: 16),
-                _buildPacePromptCard(),
                 _buildLanguageAndNoteSection(),
                 const SizedBox(height: 16),
                 _buildSessionLogSection(),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Status bar showing engine state and adaptive LPM
-  Widget _buildPacingStatusBar() {
-    final isLocked = _playbackController?.feedbackLoop.isLocked ?? false;
-    final currentAlpha = _playbackController?.feedbackLoop.currentAlpha ?? 0.25;
-    final userLpm = _pacingEngine.userLpm;
-
-    final dotColor = _playbackState == DictationPlaybackState.playingChunk
-        ? DiktaColors.burgundyPrimary
-        : _playbackState == DictationPlaybackState.waitingGap
-            ? DiktaColors.goldAntique
-            : _playbackState == DictationPlaybackState.preparing
-                ? DiktaColors.goldBright
-                : DiktaColors.inkMuted;
-
-    return Container(
-      width: double.infinity,
-      color: DiktaColors.cardSurface,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 9,
-                height: 9,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: dotColor,
-                  border: Border.all(
-                    color: _playbackState == DictationPlaybackState.playingChunk
-                        ? DiktaColors.burgundyMedium
-                        : Colors.transparent,
-                    width: 1.5,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                _playbackState == DictationPlaybackState.playingChunk
-                    ? 'Speaking chunk (${_pacingEngine.gnaniSpeechRate.toStringAsFixed(2)}x)'
-                    : _playbackState == DictationPlaybackState.waitingGap
-                        ? 'Writing pause (≤${_pacingEngine.maxGapSeconds.toInt()}s)'
-                        : _playbackState == DictationPlaybackState.preparing
-                            ? 'Preparing audio'
-                            : 'Ready',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: DiktaColors.inkPrimary,
-                ),
-              ),
-            ],
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: DiktaColors.goldParchment,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: DiktaColors.goldBorder,
-                width: 1.2,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  isLocked ? Icons.lock_outline : Icons.speed,
-                  size: 13,
-                  color: isLocked ? DiktaColors.burgundyPrimary : DiktaColors.goldDark,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  isLocked
-                      ? '${userLpm.toStringAsFixed(0)} LPM · Locked'
-                      : '${userLpm.toStringAsFixed(0)} LPM · α=${currentAlpha.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: isLocked ? DiktaColors.burgundyPrimary : DiktaColors.goldDark,
-                  ),
-                ),
               ],
             ),
           ),
@@ -553,39 +594,17 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Card Header Row: Progress & Boundary
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            _totalChunks > 0
-                                ? 'PHRASE ${_currentChunkIndex + 1} OF $_totalChunks'
-                                : 'DICTATION READY',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.0,
-                              color: DiktaColors.goldDark,
-                            ),
-                          ),
-                          if (_currentChunk != null)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: DiktaColors.goldParchment,
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: DiktaColors.goldBorder),
-                              ),
-                              child: Text(
-                                '${PacingEngine.countGraphemes(_currentChunk!.text)} letters · ${_currentChunk!.boundaryType.name}',
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: DiktaColors.burgundyPrimary,
-                                ),
-                              ),
-                            ),
-                        ],
+                      // Card Header: Progress
+                      Text(
+                        _totalChunks > 0
+                            ? 'PHRASE ${_currentChunkIndex + 1} OF $_totalChunks'
+                            : 'DICTATION READY',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.0,
+                          color: DiktaColors.goldDark,
+                        ),
                       ),
                       const SizedBox(height: 16),
 
@@ -1078,99 +1097,6 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
     return btn;
   }
 
-  /// In-session Pace Feedback Prompt
-  Widget _buildPacePromptCard() {
-    if (!_showPacePrompt) return const SizedBox.shrink();
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: DiktaColors.goldParchment,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: DiktaColors.goldBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Row(
-                children: [
-                  Icon(Icons.tune, size: 16, color: DiktaColors.burgundyPrimary),
-                  SizedBox(width: 8),
-                  Text(
-                    'Pace check: Is the dictation comfortable for writing?',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: DiktaColors.burgundyPrimary),
-                  ),
-                ],
-              ),
-              IconButton(
-                icon: const Icon(Icons.close, size: 16, color: DiktaColors.inkMuted),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                onPressed: () => setState(() => _showPacePrompt = false),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () {
-                    _playbackController?.submitPaceFeedback(PacingSignalType.promptTooFast);
-                    setState(() => _showPacePrompt = false);
-                  },
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: DiktaColors.goldBorder),
-                    backgroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  child: const Text('Too Slow\n(Speed up)', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: DiktaColors.inkPrimary)),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: FilledButton(
-                  onPressed: () {
-                    _playbackController?.submitPaceFeedback(PacingSignalType.promptJustRight);
-                    setState(() => _showPacePrompt = false);
-                  },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: DiktaColors.burgundyPrimary,
-                    foregroundColor: DiktaColors.goldLight,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  child: const Text('Just Right\n(Keep pace)', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: DiktaColors.goldLight)),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () {
-                    _playbackController?.submitPaceFeedback(PacingSignalType.promptTooSlow);
-                    setState(() => _showPacePrompt = false);
-                  },
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: DiktaColors.goldBorder),
-                    backgroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  child: const Text('Too Fast\n(More time)', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: DiktaColors.inkPrimary)),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
   /// Clean Language, Voice, and Note Input Sheet
   Widget _buildLanguageAndNoteSection() {
     final voices = GnaniVoiceCatalog.getVoicesForLanguage(_currentLanguage);
@@ -1268,6 +1194,45 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                   ),
                 );
               }).toList(),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Upload PDF Notes Button (Burgundy & Antique Gold)
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              icon: _isParsingPdf
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(DiktaColors.goldLight),
+                      ),
+                    )
+                  : const Icon(Icons.picture_as_pdf, color: DiktaColors.goldBright, size: 18),
+              label: Text(
+                _isParsingPdf ? 'Parsing PDF Document...' : 'Upload PDF Notes',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.3,
+                  color: DiktaColors.goldLight,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: DiktaColors.burgundyPrimary,
+                foregroundColor: DiktaColors.goldLight,
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  side: const BorderSide(color: DiktaColors.goldAntique, width: 1.2),
+                ),
+                elevation: 1,
+                shadowColor: DiktaColors.burgundyDeep.withOpacity(0.3),
+              ),
+              onPressed: _isParsingPdf ? null : _handleUploadPdf,
             ),
           ),
           const SizedBox(height: 12),
