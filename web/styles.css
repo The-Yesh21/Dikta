@@ -629,36 +629,46 @@ p {
   font-size: 0.9375rem;
 }
 
-/* Equalizer Bars */
+/* Equalizer Bars with Organic Spring Physics */
 .sound-equalizer {
   display: inline-flex;
   align-items: flex-end;
   gap: 3px;
-  height: 16px;
+  height: 18px;
+  padding: 0 2px;
+  cursor: pointer;
+  vertical-align: middle;
 }
 
 .eq-bar {
-  width: 3px;
-  background: var(--gold-accent);
-  border-radius: 1px;
-  transition: height 0.1s ease;
+  width: 3.5px;
+  background: linear-gradient(180deg, var(--gold-leaf), var(--gold-accent));
+  border-radius: 2px;
+  min-height: 3px;
+  height: 4px;
+  will-change: height, transform;
+  transform-origin: bottom center;
+  transition: background 0.3s ease;
 }
 
-.eq-bar:nth-child(1) { height: 6px; }
-.eq-bar:nth-child(2) { height: 14px; }
-.eq-bar:nth-child(3) { height: 10px; }
-.eq-bar:nth-child(4) { height: 16px; }
-.eq-bar:nth-child(5) { height: 8px; }
+.sound-equalizer:hover .eq-bar {
+  background: linear-gradient(180deg, var(--gold-leaf), var(--crimson-accent));
+}
 
-.animating .eq-bar:nth-child(1) { animation: eq-anim 0.4s infinite alternate ease-in-out; }
-.animating .eq-bar:nth-child(2) { animation: eq-anim 0.3s infinite alternate ease-in-out 0.1s; }
-.animating .eq-bar:nth-child(3) { animation: eq-anim 0.5s infinite alternate ease-in-out 0.2s; }
-.animating .eq-bar:nth-child(4) { animation: eq-anim 0.35s infinite alternate ease-in-out 0.15s; }
-.animating .eq-bar:nth-child(5) { animation: eq-anim 0.45s infinite alternate ease-in-out 0.05s; }
+.state-status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gold-accent);
+  box-shadow: 0 0 6px var(--gold-glow);
+  margin-right: 6px;
+  animation: pulse-dot 1.8s infinite ease-in-out;
+}
 
-@keyframes eq-anim {
-  0% { height: 4px; }
-  100% { height: 16px; }
+@keyframes pulse-dot {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.25); opacity: 1; }
 }
 
 /* Ruled Notebook Progress Line */
@@ -1344,4 +1354,179 @@ p {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--space-3);
+}
+
+/* ===================================================================
+   MOTION SYSTEMS & ARCHIVAL INTEGRATION
+   Ported from open-motion library:
+   - InkWaves: Canvas fluid waves with burgundy/gold tints
+   - SpotlightCard: Radial cursor lighting
+   - MagneticButton: Spring physics attraction
+   - ScrollProgress: Manuscript reading timeline
+   - CursorGlow: Ambient pointer lighting
+   - ScrollReveal: Staggered thresholds and ink-spread reveal
+   =================================================================== */
+
+/* Fluid Ink Waves Canvas */
+.ink-waves-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.95;
+}
+
+/* Manuscript Scroll Progress */
+.scroll-progress-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 200;
+  pointer-events: none;
+  background: rgba(234, 219, 206, 0.25);
+}
+
+.scroll-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--burgundy-royal), var(--crimson-accent), var(--gold-leaf), var(--gold-accent));
+  box-shadow: 0 0 10px rgba(197, 160, 89, 0.45), 0 0 18px rgba(91, 16, 30, 0.25);
+  transition: width 0.1s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Ambient Cursor Glow */
+.cursor-glow {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+@media (hover: hover) {
+  body:hover .cursor-glow {
+    opacity: 1;
+  }
+}
+
+/* Spotlight Dynamic Lighting on Cards */
+.spotlight-card,
+.feature-card,
+.arch-card,
+.spec-card,
+.mockup-sheet {
+  position: relative;
+  overflow: hidden;
+}
+
+.card-spotlight {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    520px circle at var(--spotlight-x, 50%) var(--spotlight-y, 50%),
+    var(--spotlight-color, rgba(197, 160, 89, 0.12)),
+    rgba(91, 16, 30, 0.025) 35%,
+    transparent 65%
+  );
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.spotlight-card:hover .card-spotlight,
+.feature-card:hover .card-spotlight,
+.arch-card:hover .card-spotlight,
+.spec-card:hover .card-spotlight,
+.mockup-sheet:hover .card-spotlight {
+  opacity: 1;
+}
+
+.spotlight-card > *:not(.card-spotlight),
+.feature-card > *:not(.card-spotlight),
+.arch-card > *:not(.card-spotlight),
+.spec-card > *:not(.card-spotlight),
+.mockup-sheet > *:not(.card-spotlight) {
+  position: relative;
+  z-index: 2;
+}
+
+/* Magnetic Buttons */
+.magnetic-btn,
+.btn-primary,
+.btn-secondary,
+.ctrl-btn,
+.header-cta-btn,
+.download-btn-capsule {
+  will-change: transform;
+  transform-origin: center center;
+}
+
+/* Scroll-Triggered Reveal Animations */
+.reveal {
+  opacity: 0;
+  transform: translateY(26px);
+  transition: opacity 0.75s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.75s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+
+.reveal.revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.reveal-fade {
+  opacity: 0;
+  transition: opacity 0.8s ease-out;
+  will-change: opacity;
+}
+.reveal-fade.revealed {
+  opacity: 1;
+}
+
+.reveal-scale {
+  opacity: 0;
+  transform: scale(0.95);
+  transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+.reveal-scale.revealed {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.reveal-ink {
+  opacity: 0;
+  transform: scale(0.94);
+  filter: blur(8px);
+  transition: opacity 0.85s ease-out,
+              transform 0.85s cubic-bezier(0.22, 1, 0.36, 1),
+              filter 0.85s ease-out;
+  will-change: opacity, transform, filter;
+}
+.reveal-ink.revealed {
+  opacity: 1;
+  transform: scale(1);
+  filter: blur(0px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .reveal-scale,
+  .reveal-ink,
+  .reveal-fade {
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+    transition: none !important;
+  }
 }

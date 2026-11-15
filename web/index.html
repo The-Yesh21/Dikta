@@ -12,6 +12,17 @@
 </head>
 <body>
 
+  <!-- Manuscript Scroll Progress Indicator -->
+  <div class="scroll-progress-container" aria-hidden="true">
+    <div class="scroll-progress-bar" id="scrollProgressBar"></div>
+  </div>
+
+  <!-- Ambient Cursor Glow Track -->
+  <div class="cursor-glow" id="cursorGlow" aria-hidden="true"></div>
+
+  <!-- Background Fluid Ink & Parchment Waves -->
+  <canvas class="ink-waves-canvas" id="inkWavesCanvas" aria-hidden="true"></canvas>
+
   <!-- Navigation -->
   <header class="site-header">
     <div class="container nav-wrap">
@@ -30,7 +41,7 @@
         <li><a href="#commands">Voice control</a></li>
       </ul>
 
-      <a href="#download" class="header-cta-btn">
+      <a href="#download" class="header-cta-btn magnetic-btn">
         <span>Download APK</span>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       </a>
@@ -40,19 +51,19 @@
   <!-- Hero Section -->
   <main>
     <section class="hero-section">
-      <div class="container hero-content">
+      <div class="container hero-content reveal-ink">
         <div class="kicker">Handwriting companion for students</div>
         <h1 class="hero-title">Notes read aloud at the rhythm of handwriting</h1>
         <p class="hero-subtitle">
           Standard text readers speak continuously. Dikta divides lecture notes, textbooks, and PDFs into short grammatical phrases with calibrated handwriting pauses, letting your pen keep pace without touching the screen.
         </p>
 
-        <div class="hero-actions">
-          <a href="app-debug.apk" download="app-debug.apk" class="btn-primary">
+        <div class="hero-actions reveal">
+          <a href="app-debug.apk" download="app-debug.apk" class="btn-primary magnetic-btn">
             <span>Download Dikta for Android (.apk)</span>
             <span class="btn-meta">Version 1.0.0 · 245 MB · Android 8.0+</span>
           </a>
-          <a href="#simulator" class="btn-secondary">
+          <a href="#simulator" class="btn-secondary magnetic-btn">
             <span>Try pacing simulator</span>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
           </a>
@@ -78,7 +89,7 @@
     <!-- Interactive Simulator Hero Moment -->
     <section class="simulator-section" id="simulator">
       <div class="container">
-        <div class="notebook-card">
+        <div class="notebook-card mockup-sheet spotlight-card reveal">
           <!-- Notebook Meta Header -->
           <div class="notebook-meta-header">
             <div class="notebook-title-wrap">
@@ -117,10 +128,11 @@
           <div class="cadence-timeline">
             <div class="timeline-info">
               <div class="state-badge" id="stateBadge">
-                <span class="sound-equalizer animating" id="soundEqualizer">
+                <span class="sound-equalizer animating" id="soundEqualizer" title="Organic spring audio equalizer">
                   <span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span>
                 </span>
-                <span>Speaking phrase...</span>
+                <span class="state-status-dot" id="stateStatusDot" style="display:none;"></span>
+                <span id="stateBadgeText">Speaking phrase...</span>
               </div>
               <div class="countdown-digits" id="countdownDigits">Speaking...</div>
             </div>
@@ -132,25 +144,25 @@
           <!-- Controls -->
           <div class="controls-bar">
             <div class="control-group">
-              <button class="ctrl-btn" id="btnRepeat" title="Replay current phrase">
+              <button class="ctrl-btn magnetic-btn" id="btnRepeat" title="Replay current phrase">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
                 <span>Repeat</span>
               </button>
-              <button class="ctrl-btn" id="btnPause" title="Pause writing countdown">
+              <button class="ctrl-btn magnetic-btn" id="btnPause" title="Pause writing countdown">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
                 <span id="btnPauseText">Pause</span>
               </button>
-              <button class="ctrl-btn ctrl-btn-primary" id="btnAdvance" title="Done writing, advance now">
+              <button class="ctrl-btn ctrl-btn-primary magnetic-btn" id="btnAdvance" title="Done writing, advance now">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 19 22 12 13 5 13 19"/><polygon points="2 19 11 12 2 5 2 19"/></svg>
                 <span>Done (advance)</span>
               </button>
             </div>
             <div class="control-group">
-              <button class="ctrl-btn" id="btnSlower" title="Slow down handwriting pace">
+              <button class="ctrl-btn magnetic-btn" id="btnSlower" title="Slow down handwriting pace">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 <span>Slower (-3 LPM)</span>
               </button>
-              <button class="ctrl-btn" id="btnFaster" title="Speed up handwriting pace">
+              <button class="ctrl-btn magnetic-btn" id="btnFaster" title="Speed up handwriting pace">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 <span>Faster (+3 LPM)</span>
               </button>
@@ -171,7 +183,7 @@
     <!-- The Core Problem -->
     <section class="problem-section" id="problem">
       <div class="container">
-        <div class="section-header">
+        <div class="section-header reveal">
           <div class="kicker">The transcription gap</div>
           <h2>Why standard speech readers fail on lined paper</h2>
           <p>
@@ -179,8 +191,8 @@
           </p>
         </div>
 
-        <div class="comparison-grid">
-          <div class="compare-card problem-card">
+        <div class="comparison-grid reveal-group">
+          <div class="compare-card problem-card feature-card spotlight-card reveal">
             <div class="compare-header">
               <h3 class="compare-title">Continuous speech synthesizers</h3>
               <div class="compare-sub">Built for passive audiobooks</div>
@@ -205,7 +217,7 @@
             </ul>
           </div>
 
-          <div class="compare-card solution-card">
+          <div class="compare-card solution-card feature-card spotlight-card reveal">
             <div class="compare-header">
               <h3 class="compare-title">Dikta handwriting pacing</h3>
               <div class="compare-sub">Built for the stroke of a pen</div>
@@ -236,7 +248,7 @@
     <!-- The Pacing Engine -->
     <section class="pacing-section" id="pacing">
       <div class="container">
-        <div class="section-header">
+        <div class="section-header reveal">
           <div class="kicker">The physics of handwriting</div>
           <h2>Calibrated to the stroke of a pen</h2>
           <p>
@@ -244,15 +256,15 @@
           </p>
         </div>
 
-        <div class="formula-card">
+        <div class="formula-card spec-card spotlight-card reveal">
           <div class="formula-label">The Dikta Pacing Equation</div>
           <div class="formula-math">
             gap = ((n_graphemes / writing_speed) / tempo(t)) * syntax_factor * jitter - speech_duration
           </div>
         </div>
 
-        <div class="pillars-grid">
-          <div class="pillar-card">
+        <div class="pillars-grid reveal-group">
+          <div class="pillar-card arch-card spotlight-card reveal">
             <div class="pillar-num">01</div>
             <h3>Stroke-level character timing</h3>
             <p>
@@ -260,7 +272,7 @@
             </p>
           </div>
 
-          <div class="pillar-card">
+          <div class="pillar-card arch-card spotlight-card reveal">
             <div class="pillar-num">02</div>
             <h3>12-minute natural energy decay</h3>
             <p>
@@ -268,7 +280,7 @@
             </p>
           </div>
 
-          <div class="pillar-card">
+          <div class="pillar-card arch-card spotlight-card reveal">
             <div class="pillar-num">03</div>
             <h3>Restorative breath intervals</h3>
             <p>
@@ -276,7 +288,7 @@
             </p>
           </div>
 
-          <div class="pillar-card">
+          <div class="pillar-card arch-card spotlight-card reveal">
             <div class="pillar-num">04</div>
             <h3>Responsive to your voice</h3>
             <p>
@@ -290,7 +302,7 @@
     <!-- The Teacher's Spelling Method -->
     <section class="spelling-section" id="spelling">
       <div class="container">
-        <div class="section-header">
+        <div class="section-header reveal">
           <div class="kicker">Pedagogical dictation</div>
           <h2>How teachers dictate unfamiliar words</h2>
           <p>
@@ -298,21 +310,21 @@
           </p>
         </div>
 
-        <div class="spelling-showcase">
+        <div class="spelling-showcase spec-card spotlight-card reveal">
           <h3 style="font-size: 1.25rem; margin-bottom: 8px;">Target Word: Mitochondria</h3>
           <p style="font-size: 0.9375rem; color: var(--ink-muted);">Automatic spelling decomposition for technical terminology &ge; 10 letters</p>
 
-          <div class="morph-breakdown">
-            <div class="morph-step">
+          <div class="morph-breakdown reveal-group">
+            <div class="morph-step feature-card spotlight-card reveal">
               <div class="morph-badge">Step 1 · Pronounce</div>
               <div class="morph-content">"Mitochondria"</div>
             </div>
-            <div class="morph-step">
+            <div class="morph-step feature-card spotlight-card reveal">
               <div class="morph-badge">Step 2 · Syllable One</div>
               <div class="morph-letters">M · I · T · O</div>
               <div class="morph-content">"mito"</div>
             </div>
-            <div class="morph-step">
+            <div class="morph-step feature-card spotlight-card reveal">
               <div class="morph-badge">Step 3 · Syllable Two</div>
               <div class="morph-letters">C · H · O · N · D · R · I · A</div>
               <div class="morph-content">"mitochondria"</div>
@@ -329,7 +341,7 @@
     <!-- PDF & Diagrams -->
     <section class="pdf-section" id="pdf">
       <div class="container">
-        <div class="section-header">
+        <div class="section-header reveal">
           <div class="kicker">Document layout intelligence</div>
           <h2>Extracts headings and reserves notebook space for diagrams</h2>
           <p>
@@ -337,25 +349,25 @@
           </p>
         </div>
 
-        <div class="diagram-rule-grid">
-          <div class="diagram-card">
+        <div class="diagram-rule-grid reveal-group">
+          <div class="diagram-card spec-card spotlight-card reveal">
             <div class="diagram-size-badge">Small diagram (&le; 20% height)</div>
             <div class="diagram-lines">4 Lines</div>
             <div class="diagram-spoken">"Leave about 4 lines of space to draw later."</div>
           </div>
-          <div class="diagram-card" style="border-color: var(--gold-accent);">
+          <div class="diagram-card spec-card spotlight-card reveal" style="border-color: var(--gold-accent);">
             <div class="diagram-size-badge" style="background: var(--gold-light);">Medium diagram (21% &ndash; 40%)</div>
             <div class="diagram-lines" style="color: var(--burgundy-royal);">8 Lines</div>
             <div class="diagram-spoken">"Leave about 8 lines of space to draw later."</div>
           </div>
-          <div class="diagram-card">
+          <div class="diagram-card spec-card spotlight-card reveal">
             <div class="diagram-size-badge">Large diagram (> 40% height)</div>
             <div class="diagram-lines">14 Lines</div>
             <div class="diagram-spoken">"Leave about 14 lines of space to draw later."</div>
           </div>
         </div>
 
-        <div style="margin-top: 32px; text-align: center; font-size: 0.9375rem; color: var(--ink-secondary);">
+        <div style="margin-top: 32px; text-align: center; font-size: 0.9375rem; color: var(--ink-secondary);" class="reveal">
           <strong>Heading recognition:</strong> Lines 15% larger than median page font size are automatically announced as <em>"Heading: [Title]"</em> so you can underline and structure your page.
         </div>
       </div>
@@ -364,7 +376,7 @@
     <!-- Trilingual Support -->
     <section class="trilingual-section" id="trilingual">
       <div class="container">
-        <div class="section-header">
+        <div class="section-header reveal">
           <div class="kicker">Multilingual scholarship</div>
           <h2>English, Hindi, and Kannada with native timbre</h2>
           <p>
@@ -372,8 +384,8 @@
           </p>
         </div>
 
-        <div class="languages-grid">
-          <div class="lang-card">
+        <div class="languages-grid reveal-group">
+          <div class="lang-card feature-card spotlight-card reveal">
             <div class="lang-badge">en-IN</div>
             <h3>Indian English</h3>
             <p>
@@ -381,7 +393,7 @@
             </p>
           </div>
 
-          <div class="lang-card">
+          <div class="lang-card feature-card spotlight-card reveal">
             <div class="lang-badge">hi-IN</div>
             <h3>Hindi</h3>
             <p>
@@ -389,7 +401,7 @@
             </p>
           </div>
 
-          <div class="lang-card">
+          <div class="lang-card feature-card spotlight-card reveal">
             <div class="lang-badge">kn-IN</div>
             <h3>Kannada</h3>
             <p>
@@ -403,7 +415,7 @@
     <!-- Voice Commands -->
     <section class="commands-section" id="commands">
       <div class="container">
-        <div class="section-header">
+        <div class="section-header reveal">
           <div class="kicker">Zero-touch control</div>
           <h2>Never set your pen down to press pause</h2>
           <p>
@@ -411,7 +423,7 @@
           </p>
         </div>
 
-        <div class="commands-table-wrap">
+        <div class="commands-table-wrap spec-card spotlight-card reveal">
           <table class="commands-table">
             <thead>
               <tr>
@@ -465,34 +477,34 @@
     <!-- Download Section -->
     <section class="download-section" id="download">
       <div class="container">
-        <div class="download-box">
+        <div class="download-box arch-card spotlight-card reveal">
           <div class="kicker" style="color: var(--gold-light);">Direct installation</div>
           <h2>Download Dikta for Android</h2>
           <p>
             Install the latest standalone debug build directly to your phone. Zero cloud account required, verified offline in airplane mode.
           </p>
 
-          <a href="app-debug.apk" download="app-debug.apk" class="download-btn-capsule">
+          <a href="app-debug.apk" download="app-debug.apk" class="download-btn-capsule magnetic-btn">
             <span>Download Dikta APK (v1.0.0)</span>
             <span class="download-meta-sub">245 MB · Android 8.0 (Oreo) or later · ARM64 & x86_64</span>
           </a>
 
-          <div class="install-steps">
-            <div class="step-item">
+          <div class="install-steps reveal-group">
+            <div class="step-item feature-card spotlight-card reveal">
               <div class="step-num">1</div>
               <div class="step-text">
                 <h4>Download APK</h4>
                 <p>Tap the button above to download <code>app-debug.apk</code> directly.</p>
               </div>
             </div>
-            <div class="step-item">
+            <div class="step-item feature-card spotlight-card reveal">
               <div class="step-num">2</div>
               <div class="step-text">
                 <h4>Allow Unknown Apps</h4>
                 <p>Open the file and enable "Install unknown apps" in Android Settings.</p>
               </div>
             </div>
-            <div class="step-item">
+            <div class="step-item feature-card spotlight-card reveal">
               <div class="step-num">3</div>
               <div class="step-text">
                 <h4>Begin Dictation</h4>
