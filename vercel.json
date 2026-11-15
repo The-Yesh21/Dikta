@@ -75,23 +75,28 @@
   ],
   "redirects": [
     {
+      "source": "/app-debug.apk",
+      "destination": "https://github.com/The-Yesh21/Dikta/releases/download/v0.2.0-alpha/app-debug.apk",
+      "permanent": false
+    },
+    {
       "source": "/download",
-      "destination": "/app-debug.apk",
+      "destination": "https://github.com/The-Yesh21/Dikta/releases/download/v0.2.0-alpha/app-debug.apk",
       "permanent": false
     },
     {
       "source": "/apk",
-      "destination": "/app-debug.apk",
+      "destination": "https://github.com/The-Yesh21/Dikta/releases/download/v0.2.0-alpha/app-debug.apk",
       "permanent": false
     },
     {
       "source": "/Dikta.apk",
-      "destination": "/app-debug.apk",
+      "destination": "https://github.com/The-Yesh21/Dikta/releases/download/v0.2.0-alpha/app-debug.apk",
       "permanent": false
     },
     {
       "source": "/Dikta-v1.0.0.apk",
-      "destination": "/app-debug.apk",
+      "destination": "https://github.com/The-Yesh21/Dikta/releases/download/v0.2.0-alpha/app-debug.apk",
       "permanent": false
     }
   ]
