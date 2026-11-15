@@ -647,11 +647,11 @@
   /* =================================================================
      4. SPOTLIGHT DYNAMIC LIGHTING ON CARDS
      Ported from SpotlightCard.tsx
-     Applies to .spotlight-card, .feature-card, .arch-card, .spec-card, .mockup-sheet
+     Applies to .spotlight-card, .feature-card, .arch-card, .spec-card, .mockup-sheet, .how-step-card
      ================================================================= */
   function initSpotlightCards() {
     const cards = document.querySelectorAll(
-      '.spotlight-card, .feature-card, .arch-card, .spec-card, .mockup-sheet, .compare-card, .pillar-card, .diagram-card, .lang-card, .notebook-card, .download-box'
+      '.spotlight-card, .feature-card, .arch-card, .spec-card, .mockup-sheet, .compare-card, .pillar-card, .diagram-card, .lang-card, .notebook-card, .download-box, .how-step-card, .how-interactive-banner'
     );
 
     cards.forEach((card) => {
@@ -824,6 +824,133 @@
   }
 
   /* =================================================================
+     8. HOW TO USE INTERACTIVE STEPPER & MOBILE NAVIGATION
+     ================================================================= */
+  function initHowToUseInteractive() {
+    const tabButtons = document.querySelectorAll('.how-tab-btn');
+    const stepCards = document.querySelectorAll('.how-step-card');
+    const trackProgress = document.getElementById('howTrackProgress');
+
+    function setActiveStep(stepNum) {
+      const num = parseInt(stepNum, 10);
+      if (isNaN(num) || num < 1 || num > 4) return;
+
+      // Update Tab buttons
+      tabButtons.forEach((btn) => {
+        const btnStep = parseInt(btn.getAttribute('data-step'), 10);
+        const isActive = btnStep === num;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      });
+
+      // Update Step Cards
+      stepCards.forEach((card) => {
+        const cardStep = parseInt(card.getAttribute('data-step'), 10);
+        card.classList.toggle('active', cardStep === num);
+      });
+
+      // Update Track Progress Bar
+      if (trackProgress) {
+        const percent = (num / 4) * 100;
+        trackProgress.style.width = `${percent}%`;
+      }
+    }
+
+    // Attach click to tab buttons
+    tabButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const step = btn.getAttribute('data-step');
+        setActiveStep(step);
+      });
+    });
+
+    // Attach click, hover, and focus to step cards
+    stepCards.forEach((card) => {
+      card.addEventListener('click', () => {
+        const step = card.getAttribute('data-step');
+        setActiveStep(step);
+      });
+
+      card.addEventListener('mouseenter', () => {
+        const step = card.getAttribute('data-step');
+        setActiveStep(step);
+      });
+
+      card.addEventListener('focus', () => {
+        const step = card.getAttribute('data-step');
+        setActiveStep(step);
+      });
+    });
+
+    // Step 2 Micro-Interaction: Script Switcher
+    const scriptChips = document.querySelectorAll('.rhythm-script-chip');
+    const pulseThumb = document.querySelector('.rhythm-pulse-thumb');
+    scriptChips.forEach((chip) => {
+      chip.addEventListener('click', (e) => {
+        e.stopPropagation();
+        scriptChips.forEach((c) => c.classList.remove('active'));
+        chip.classList.add('active');
+        if (pulseThumb) {
+          const isDevanagari = chip.textContent.includes('Devanagari');
+          pulseThumb.style.left = isDevanagari ? '75%' : '45%';
+        }
+      });
+    });
+
+    // Step 4 Micro-Interaction: Voice Command Chips
+    const cmdChips = document.querySelectorAll('.cmd-pill-badge');
+    cmdChips.forEach((chip) => {
+      chip.addEventListener('click', (e) => {
+        e.stopPropagation();
+        cmdChips.forEach((c) => c.classList.remove('active'));
+        chip.classList.add('active');
+      });
+    });
+  }
+
+  function initMobileMenu() {
+    const toggleBtn = document.getElementById('mobileMenuToggle');
+    const drawer = document.getElementById('mobileNavDrawer');
+    if (!toggleBtn || !drawer) return;
+
+    function toggleMenu(open) {
+      const isOpen = open !== undefined ? open : !toggleBtn.classList.contains('open');
+      toggleBtn.classList.toggle('open', isOpen);
+      toggleBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      drawer.classList.toggle('open', isOpen);
+      drawer.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+    }
+
+    toggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleMenu();
+    });
+
+    // Close when clicking nav links inside mobile drawer
+    const links = drawer.querySelectorAll('.mobile-nav-link');
+    links.forEach((link) => {
+      link.addEventListener('click', () => {
+        toggleMenu(false);
+      });
+    });
+
+    // Close when clicking outside drawer
+    document.addEventListener('click', (e) => {
+      if (!drawer.contains(e.target) && !toggleBtn.contains(e.target) && toggleBtn.classList.contains('open')) {
+        toggleMenu(false);
+      }
+    });
+
+    // Close on Escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && toggleBtn.classList.contains('open')) {
+        toggleMenu(false);
+        toggleBtn.focus();
+      }
+    });
+  }
+
+  /* =================================================================
      INITIALIZATION ON DOM READY
      ================================================================= */
   document.addEventListener('DOMContentLoaded', () => {
@@ -848,7 +975,13 @@
     // 7. Ambient cursor glow
     initCursorGlow();
 
-    // 8. Start pacing simulator
+    // 8. How to Use Interactive Stepper
+    initHowToUseInteractive();
+
+    // 9. Mobile Navigation Menu
+    initMobileMenu();
+
+    // 10. Start pacing simulator
     startSpeaking();
   });
 })();

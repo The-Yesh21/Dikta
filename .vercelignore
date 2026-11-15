@@ -1,0 +1,21 @@
+# Exclude mobile Flutter project files from Vercel deployment bundle
+.dart_tool/
+.idea/
+.flutter-plugins-dependencies
+android/
+ios/
+lib/
+test/
+build/
+open-motion/
+*.iml
+*.lock
+*.yaml
+*.dart
+gnani_config.json
+
+# Exclude local 245MB debug APK (exceeds Vercel 100MB static asset limit)
+# Note: For production, use Method A (GitHub Releases redirect) or Method B (<100MB release APK)
+*.apk
+web/*.apk
+web/app-debug.apk

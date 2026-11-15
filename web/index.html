@@ -33,6 +33,7 @@
       </a>
 
       <ul class="nav-links">
+        <li><a href="#how-to-use">How to use</a></li>
         <li><a href="#problem">The problem</a></li>
         <li><a href="#pacing">Pacing engine</a></li>
         <li><a href="#spelling">Spelling method</a></li>
@@ -41,10 +42,31 @@
         <li><a href="#commands">Voice control</a></li>
       </ul>
 
-      <a href="#download" class="header-cta-btn magnetic-btn">
-        <span>Download APK</span>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      </a>
+      <div class="nav-actions">
+        <a href="#download" class="header-cta-btn magnetic-btn">
+          <span>Download APK</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </a>
+        <button class="mobile-menu-toggle" id="mobileMenuToggle" aria-label="Toggle navigation menu" aria-expanded="false">
+          <span class="hamburger-bar"></span>
+          <span class="hamburger-bar"></span>
+          <span class="hamburger-bar"></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Mobile Navigation Drawer -->
+    <div class="mobile-nav-drawer" id="mobileNavDrawer" aria-hidden="true">
+      <ul class="mobile-nav-links">
+        <li><a href="#how-to-use" class="mobile-nav-link">How to use</a></li>
+        <li><a href="#problem" class="mobile-nav-link">The problem</a></li>
+        <li><a href="#pacing" class="mobile-nav-link">Pacing engine</a></li>
+        <li><a href="#spelling" class="mobile-nav-link">Spelling method</a></li>
+        <li><a href="#pdf" class="mobile-nav-link">PDF & diagrams</a></li>
+        <li><a href="#trilingual" class="mobile-nav-link">Trilingual</a></li>
+        <li><a href="#commands" class="mobile-nav-link">Voice control</a></li>
+        <li><a href="#download" class="mobile-nav-link mobile-nav-cta">Download APK</a></li>
+      </ul>
     </div>
   </header>
 
@@ -75,12 +97,12 @@
             <span>On-device keyword spotting</span>
           </div>
           <div class="assurance-item">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-            <span>Airplane mode verified</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span>Grapheme-calibrated pacing</span>
           </div>
           <div class="assurance-item">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-            <span>Zero cloud accounts or analytics</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1 4-10z"/></svg>
+            <span>Trilingual English, Hindi, Kannada</span>
           </div>
         </div>
       </div>
@@ -175,6 +197,269 @@
             <div class="telemetry-item">Writing speed: <strong id="metaSpeed">0.80 w/s</strong></div>
             <div class="telemetry-item">Fatigue factor: <strong>0.94</strong></div>
             <div class="telemetry-item">Syntax factor: <strong id="metaSyntax">1.20x</strong></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- How to Use Dikta: Interactive Motion Workflow -->
+    <section class="how-to-use-section" id="how-to-use">
+      <div class="container">
+        <div class="section-header reveal">
+          <div class="kicker">Workflow & Guided Motion</div>
+          <h2>How to use Dikta for effortless handwriting</h2>
+          <p>
+            From imported manuscript to paced dictation in four seamless steps. Calibrate your pen speed, set your phone down, and copy lecture notes without touching the screen.
+          </p>
+        </div>
+
+        <!-- Interactive Step Selector Tabs -->
+        <div class="how-tabs-nav reveal" role="tablist" aria-label="Dikta workflow steps">
+          <button class="how-tab-btn active" role="tab" aria-selected="true" data-step="1">
+            <span class="how-tab-num">01</span>
+            <span class="how-tab-name">Upload or Paste</span>
+          </button>
+          <button class="how-tab-btn" role="tab" aria-selected="false" data-step="2">
+            <span class="how-tab-num">02</span>
+            <span class="how-tab-name">Calibrate Rhythm</span>
+          </button>
+          <button class="how-tab-btn" role="tab" aria-selected="false" data-step="3">
+            <span class="how-tab-num">03</span>
+            <span class="how-tab-name">Listen & Copy</span>
+          </button>
+          <button class="how-tab-btn" role="tab" aria-selected="false" data-step="4">
+            <span class="how-tab-num">04</span>
+            <span class="how-tab-name">Hands-Free Control</span>
+          </button>
+        </div>
+
+        <!-- Stepper Connectors & Cards Grid -->
+        <div class="how-steps-wrapper">
+          <!-- Desktop Stepper Track Connector -->
+          <div class="how-track-connector" aria-hidden="true">
+            <div class="how-track-line"></div>
+            <div class="how-track-progress" id="howTrackProgress"></div>
+          </div>
+
+          <div class="how-steps-grid reveal-group">
+            <!-- Step 1 Card -->
+            <div class="how-step-card spotlight-card feature-card reveal active" data-step="1" tabindex="0">
+              <div class="how-step-top">
+                <div class="how-step-badge">
+                  <span class="how-step-num-gilded">01</span>
+                  <span class="how-step-roman">I</span>
+                </div>
+                <div class="how-step-icon-wrap" title="Document Import & Extraction">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                  </svg>
+                </div>
+              </div>
+
+              <div class="how-step-body">
+                <h3 class="how-step-title">Upload or Paste Your Notes</h3>
+                <p class="how-step-desc">
+                  Select any PDF or paste raw study notes. Dikta automatically detects headings, diagrams, and language.
+                </p>
+              </div>
+
+              <!-- Animated Micro-Interaction Preview: Document Parsing -->
+              <div class="how-micro-visual">
+                <div class="micro-doc-preview">
+                  <div class="doc-header-tag">
+                    <span class="doc-pill-tag">PDF / Raw Text</span>
+                    <span class="doc-status-indicator"><span class="ping-dot"></span>Parsing</span>
+                  </div>
+                  <div class="doc-scan-line"></div>
+                  <div class="doc-lines-preview">
+                    <div class="doc-line heading"><span class="line-tag"># Cellular Respiration</span></div>
+                    <div class="doc-line text"></div>
+                    <div class="doc-line diagram"><span class="line-tag">[Diagram: 8 lines allocated]</span></div>
+                    <div class="doc-line text short"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="how-step-footer">
+                <span class="how-footer-tag">PyMuPDF · Grapheme Parser</span>
+                <span class="how-step-chevron">→</span>
+              </div>
+            </div>
+
+            <!-- Step 2 Card -->
+            <div class="how-step-card spotlight-card feature-card reveal" data-step="2" tabindex="0">
+              <div class="how-step-top">
+                <div class="how-step-badge">
+                  <span class="how-step-num-gilded">02</span>
+                  <span class="how-step-roman">II</span>
+                </div>
+                <div class="how-step-icon-wrap" title="Speed & Script Calibration">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 15 15"/>
+                    <path d="M16.24 7.76a6 6 0 0 1 0 8.49"/>
+                  </svg>
+                </div>
+              </div>
+
+              <div class="how-step-body">
+                <h3 class="how-step-title">Calibrate Your Writing Rhythm</h3>
+                <p class="how-step-desc">
+                  Quick 2-sentence calibration measures your handwriting letters-per-minute for Latin, Devanagari, or Kannada script.
+                </p>
+              </div>
+
+              <!-- Animated Micro-Interaction Preview: Calibration Bar & Stats -->
+              <div class="how-micro-visual">
+                <div class="micro-rhythm-preview">
+                  <div class="rhythm-stats-row">
+                    <span class="rhythm-script-chip">Latin: <strong>48 LPM</strong></span>
+                    <span class="rhythm-script-chip active">Devanagari: <strong>36 LPM</strong></span>
+                  </div>
+                  <div class="rhythm-bar-wrap">
+                    <div class="rhythm-pulse-track">
+                      <span class="rhythm-pulse-notch" style="left: 20%;"></span>
+                      <span class="rhythm-pulse-notch" style="left: 50%;"></span>
+                      <span class="rhythm-pulse-notch active" style="left: 75%;"></span>
+                      <div class="rhythm-pulse-thumb"></div>
+                    </div>
+                  </div>
+                  <div class="rhythm-feedback-text">
+                    <span class="rhythm-dot"></span> 2 sentences copied · Baseline locked
+                  </div>
+                </div>
+              </div>
+
+              <div class="how-step-footer">
+                <span class="how-footer-tag">LPM Metric · Fatigue Compensated</span>
+                <span class="how-step-chevron">→</span>
+              </div>
+            </div>
+
+            <!-- Step 3 Card -->
+            <div class="how-step-card spotlight-card feature-card reveal" data-step="3" tabindex="0">
+              <div class="how-step-top">
+                <div class="how-step-badge">
+                  <span class="how-step-num-gilded">03</span>
+                  <span class="how-step-roman">III</span>
+                </div>
+                <div class="how-step-icon-wrap" title="Acoustic Dictation & Syllable Speller">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                    <line x1="12" y1="19" x2="12" y2="23"/>
+                    <line x1="8" y1="23" x2="16" y2="23"/>
+                  </svg>
+                </div>
+              </div>
+
+              <div class="how-step-body">
+                <h3 class="how-step-title">Listen & Copy Naturally</h3>
+                <p class="how-step-desc">
+                  Dikta dictates in 3-8 word phrases, speaks difficult words syllable-by-syllable, and gives you breathing writing pauses.
+                </p>
+              </div>
+
+              <!-- Animated Micro-Interaction Preview: Phrase & Syllables -->
+              <div class="how-micro-visual">
+                <div class="micro-speech-preview">
+                  <div class="speech-phrase-chip">
+                    <span class="speech-quote">“Mitochondria produce...”</span>
+                  </div>
+                  <div class="speech-syllables-preview">
+                    <span class="syllable-crumb">MI-TO</span>
+                    <span class="syllable-crumb-sep">·</span>
+                    <span class="syllable-crumb active">CHON-DRI-A</span>
+                  </div>
+                  <div class="pause-countdown-pill">
+                    <span class="breathing-pulse-indicator"></span>
+                    <span>Breathing pause: 4.2s</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="how-step-footer">
+                <span class="how-footer-tag">sherpa-onnx · Natural Cadence</span>
+                <span class="how-step-chevron">→</span>
+              </div>
+            </div>
+
+            <!-- Step 4 Card -->
+            <div class="how-step-card spotlight-card feature-card reveal" data-step="4" tabindex="0">
+              <div class="how-step-top">
+                <div class="how-step-badge">
+                  <span class="how-step-num-gilded">04</span>
+                  <span class="how-step-roman">IV</span>
+                </div>
+                <div class="how-step-icon-wrap" title="Hands-Free Offline Voice Control">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                    <polyline points="22 4 12 14.01 9 11.01"/>
+                  </svg>
+                </div>
+              </div>
+
+              <div class="how-step-body">
+                <h3 class="how-step-title">Hands-Free Voice & Tap Controls</h3>
+                <p class="how-step-desc">
+                  Say 'Repeat', 'Pause', 'Slower', or tap 'Done' when you finish early to advance.
+                </p>
+              </div>
+
+              <!-- Animated Micro-Interaction Preview: Commands & Mic -->
+              <div class="how-micro-visual">
+                <div class="micro-commands-preview">
+                  <div class="cmd-chip-grid">
+                    <span class="cmd-pill-badge active" data-cmd="Repeat">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                      'Repeat'
+                    </span>
+                    <span class="cmd-pill-badge" data-cmd="Pause">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                      'Pause'
+                    </span>
+                    <span class="cmd-pill-badge" data-cmd="Slower">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      'Slower'
+                    </span>
+                    <span class="cmd-pill-badge highlight" data-cmd="Done">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                      'Done' tap
+                    </span>
+                  </div>
+                  <div class="voice-listening-bar">
+                    <span class="mic-wave-pulse"></span>
+                    <span>Spotting: <strong>98.4% precision offline</strong></span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="how-step-footer">
+                <span class="how-footer-tag">Keyword Spotting · Zero Latency</span>
+                <span class="how-step-chevron">✓</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Interactive Quick Try Callout Banner -->
+        <div class="how-interactive-banner spotlight-card arch-card reveal">
+          <div class="banner-content">
+            <div class="banner-kicker">Interactive Experience</div>
+            <h3 class="banner-title">Want to see the pacing engine in motion right now?</h3>
+            <p class="banner-desc">
+              Experience phrase chunking, syllable spelling aids, and handwriting countdowns directly in your browser before installing.
+            </p>
+          </div>
+          <div class="banner-actions">
+            <a href="#simulator" class="btn-primary magnetic-btn">
+              <span>Scroll to Live Simulator</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </a>
           </div>
         </div>
       </div>
@@ -481,7 +766,7 @@
           <div class="kicker" style="color: var(--gold-light);">Direct installation</div>
           <h2>Download Dikta for Android</h2>
           <p>
-            Install the latest standalone debug build directly to your phone. Zero cloud account required, verified offline in airplane mode.
+            Install the latest standalone debug build directly to your phone.
           </p>
 
           <a href="app-debug.apk" download="app-debug.apk" class="download-btn-capsule magnetic-btn">
@@ -534,6 +819,7 @@
         <div class="footer-col">
           <h5>Architecture</h5>
           <ul>
+            <li><a href="#how-to-use">How to Use Dikta</a></li>
             <li><a href="#pacing">Grapheme Pacing Engine</a></li>
             <li><a href="#spelling">Pedagogical Syllable Speller</a></li>
             <li><a href="#pdf">PDF Space Allocator</a></li>

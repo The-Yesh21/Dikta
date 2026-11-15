@@ -1,0 +1,4 @@
+# Exclude local 245MB debug APK (exceeds Vercel 100MB static asset limit)
+# Note: For production, use Method A (GitHub Releases redirect) or Method B (<100MB release APK)
+*.apk
+app-debug.apk
