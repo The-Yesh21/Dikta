@@ -58,3 +58,7 @@ gnani_config.json
 .env
 assets/config/gnani_secrets.json
 lib/config/gnani_secrets.dart
+
+# Binary APK distribution builds (>100MB)
+*.apk
+web/*.apk
