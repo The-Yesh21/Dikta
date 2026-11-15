@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dikta — One-Page Solution Pitch</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;0,6..72,700;1,6..72,400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --burgundy-deep: #3F0B13;
+      --burgundy-primary: #5B101E;
+      --burgundy-medium: #7B1728;
+      --gold-antique: #C5A059;
+      --gold-bright: #DFB15B;
+      --gold-parchment: #FAF3E3;
+      --gold-border: #E2D0A6;
+      --paper: #FAF7F2;
+      --card: #FFFFFF;
+      --ink: #221316;
+      --ink-secondary: #5C474D;
+      --ink-muted: #8F7B81;
+      --border: #EADBCE;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'Inter', -apple-system, sans-serif;
+      line-height: 1.6;
+      padding: 40px 20px;
+    }
+    .sheet {
+      max-width: 820px;
+      margin: 0 auto;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 48px;
+      box-shadow: 0 12px 36px rgba(63, 11, 19, 0.05);
+      position: relative;
+    }
+    .sheet::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; bottom: 0;
+      width: 6px;
+      background: var(--burgundy-primary);
+      border-radius: 16px 0 0 16px;
+    }
+    .back-nav {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--burgundy-primary);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 24px;
+    }
+    .back-nav:hover { color: var(--burgundy-medium); text-decoration: underline; }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      background: var(--gold-parchment);
+      border: 1px solid var(--gold-border);
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--burgundy-primary);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 12px;
+    }
+    h1 {
+      font-family: 'Newsreader', serif;
+      font-size: 36px;
+      font-weight: 700;
+      color: var(--burgundy-deep);
+      line-height: 1.2;
+      margin-bottom: 8px;
+    }
+    .tagline {
+      font-size: 17px;
+      color: var(--ink-secondary);
+      font-weight: 500;
+      margin-bottom: 28px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 20px;
+    }
+    h2 {
+      font-family: 'Newsreader', serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--burgundy-primary);
+      margin-top: 24px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    p { font-size: 14.5px; color: var(--ink); margin-bottom: 14px; }
+    strong { color: var(--burgundy-deep); font-weight: 600; }
+    .stat-strip {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin: 20px 0;
+      text-align: center;
+    }
+    .stat-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--burgundy-primary);
+    }
+    .stat-label { font-size: 12px; color: var(--ink-secondary); margin-top: 4px; }
+    .formula-box {
+      background: var(--paper);
+      border-left: 3px solid var(--gold-antique);
+      padding: 14px 18px;
+      border-radius: 0 8px 8px 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: var(--ink);
+      margin: 14px 0;
+      overflow-x: auto;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 16px 0;
+    }
+    .pill-card {
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+    }
+    .pill-card h3 {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--burgundy-primary);
+      margin-bottom: 6px;
+    }
+    .pill-card p { font-size: 13px; color: var(--ink-secondary); margin-bottom: 0; }
+    .cta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--gold-parchment);
+      border: 1px solid var(--gold-border);
+      border-radius: 12px;
+      padding: 18px 24px;
+      margin-top: 32px;
+    }
+    .cta-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--burgundy-primary);
+      color: var(--gold-parchment);
+      padding: 10px 20px;
+      border-radius: 24px;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .cta-btn:hover { background: var(--burgundy-deep); }
+    @media (max-width: 640px) {
+      .sheet { padding: 28px 20px; }
+      .stat-strip, .grid-2 { grid-template-columns: 1fr; }
+      .cta-row { flex-direction: column; gap: 14px; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+  <div class="sheet">
+    <a href="index.html" class="back-nav">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+      Return to Landing Page
+    </a>
+
+    <div>
+      <span class="badge">Executive Solution Pitch</span>
+      <h1>Dikta</h1>
+      <div class="tagline">Notes read aloud at the rhythm of handwriting. A mobile dictation companion for students copying notes by hand.</div>
+    </div>
+
+    <h2>1. The Problem</h2>
+    <p>Students retain up to <strong>40% more conceptual depth</strong> when copying study material by hand. But copying from screens or textbooks causes continual neck fatigue, visual context switching, and fragmented focus.</p>
+    <p>Traditional audiobooks and Text-to-Speech (TTS) tools read continuously at <strong>130–170 WPM</strong>. Human handwriting averages only <strong>25–40 WPM</strong>. When copying, students are forced to pause and rewind every three seconds. Tools built for <em>listening</em> fail completely for <em>writing</em>.</p>
+
+    <div class="stat-strip">
+      <div>
+        <div class="stat-num">160 WPM</div>
+        <div class="stat-label">Audiobook / TTS Speed</div>
+      </div>
+      <div>
+        <div class="stat-num">30 WPM</div>
+        <div class="stat-label">Handwriting Speed</div>
+      </div>
+      <div>
+        <div class="stat-num">100%</div>
+        <div class="stat-label">Rhythmic Alignment in Dikta</div>
+      </div>
+    </div>
+
+    <h2>2. The Solution: Dikta</h2>
+    <p><strong>Dikta</strong> dictates notes in short 3–8 word phrases, followed by mathematically calculated writing pauses dynamically calibrated to the student's physical handwriting cadence.</p>
+
+    <div class="formula-box">
+      writeSeconds = (graphemes / userLpm) * 60 * scriptFactor<br>
+      gap = max(minGap, writeSeconds - 0.5 * speechSeconds) + boundaryPause
+    </div>
+
+    <h2>3. Core Differentiators</h2>
+    <div class="grid-2">
+      <div class="pill-card">
+        <h3>Grapheme Pacing Engine</h3>
+        <p>Uses Dart <code>characters</code> for true grapheme clusters (Latin, Devanagari, Kannada), fatigue decay ($e^{-t / \tau}$), and an adaptive feedback loop ($\alpha = 0.25 \to 0.05$).</p>
+      </div>
+      <div class="pill-card">
+        <h3>Teacher's Syllable Spelling</h3>
+        <p>Technical words (&ge;10 letters) are spelled naturally: <em>"M, I, T, O &middot; mito &middot; C, H, O, N, D, R, I, A &middot; mitochondria."</em></p>
+      </div>
+      <div class="pill-card">
+        <h3>PDF Headings & Diagrams</h3>
+        <p>Detects headings by font size (&ge;1.15&times; body) and image ratios to tell students: <em>"Leave ~8 lines of space to draw diagram later."</em></p>
+      </div>
+      <div class="pill-card">
+        <h3>Trilingual Audio Parity</h3>
+        <p>Native timbre voices for English (<code>en-IN</code>), Hindi (<code>hi-IN</code>), and Kannada (<code>kn-IN</code>) via Gnani Vachana AI with leading silence buffers.</p>
+      </div>
+    </div>
+
+    <h2>4. Quick Start & Distribution</h2>
+    <p>Standalone Android build is ready for installation. Complete pure Dart unit and widget test suite (117 tests passing).</p>
+
+    <div class="cta-row">
+      <div>
+        <strong style="display:block; font-size:15px; color:var(--burgundy-deep)">Ready to test on device?</strong>
+        <span style="font-size:12px; color:var(--ink-secondary)">Dikta v0.2.0-alpha &middot; Android 8.0+ &middot; Standalone APK</span>
+      </div>
+      <a href="app-debug.apk" class="cta-btn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download APK
+      </a>
+    </div>
+  </div>
+</body>
+</html>
