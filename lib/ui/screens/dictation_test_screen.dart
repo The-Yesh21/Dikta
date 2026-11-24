@@ -52,6 +52,10 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
   bool _isParsingPdf = false;
   bool _isLogsExpanded = false;
   bool _spellDifficultWords = true;
+  bool _isPdfMode = false;
+  String? _loadedPdfFileName;
+  List<DocumentItem> _parsedDocumentItems = [];
+  final ScrollController _pdfScrollController = ScrollController();
 
   DictationPlaybackState _playbackState = DictationPlaybackState.idle;
   final List<DictationSessionLog> _logs = [];
@@ -133,6 +137,9 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
           _currentChunk = _playbackController?.currentChunk;
           _currentChunkIndex = _playbackController?.currentChunkIndex ?? 0;
         });
+        if (_isPdfMode && _parsedDocumentItems.isNotEmpty) {
+          _autoScrollPdfViewer();
+        }
       }
     });
 
@@ -176,6 +183,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
     _spellingPlayer.dispose();
     _ttsEngine.dispose();
     _textController.dispose();
+    _pdfScrollController.dispose();
     super.dispose();
   }
 
@@ -351,7 +359,8 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
 
       if (file.bytes != null && file.bytes!.isNotEmpty) {
         items = PdfDocumentParser.parseBytes(file.bytes!);
-      } else if (file.path != null && file.path!.isNotEmpty) {
+      }
+      if (items.isEmpty && file.path != null && file.path!.isNotEmpty) {
         items = await PdfDocumentParser.parseFile(file.path!);
       }
 
@@ -372,9 +381,11 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
         return;
       }
 
-      // Automatically detect if content is predominantly Kannada or English
+      // Automatically detect if content is predominantly Kannada, Hindi, or English
       final detectedLangCode = PdfDocumentParser.detectLanguage(items);
-      final targetLang = detectedLangCode == 'kn' ? 'kn-IN' : 'en-IN';
+      final targetLang = detectedLangCode == 'kn'
+          ? 'kn-IN'
+          : (detectedLangCode == 'hi' ? 'hi-IN' : 'en-IN');
 
       // Load structured text with heading and diagram markers
       final structuredText = items
@@ -393,12 +404,17 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
 
       setState(() {
         _isParsingPdf = false;
+        _isPdfMode = true;
+        _loadedPdfFileName = file.name;
+        _parsedDocumentItems = items;
         _textController.text = structuredText;
         _currentLanguage = targetLang;
 
         final voices = GnaniVoiceCatalog.getVoicesForLanguage(targetLang);
         if (targetLang == 'kn-IN') {
           _currentVoice = 'Saanvi';
+        } else if (targetLang == 'hi-IN') {
+          _currentVoice = voices.isNotEmpty ? voices.first.name : 'Naveen';
         } else {
           _currentVoice = voices.isNotEmpty ? voices.first.name : 'Shivani';
         }
@@ -425,13 +441,16 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
           SnackBar(
             backgroundColor: DiktaColors.burgundyPrimary,
             content: Text(
-              'PDF loaded ($langLabel): $headingCount headings, $diagramCount diagrams, $_totalChunks chunks ready!',
+              'PDF loaded ($langLabel): $headingCount headings, $diagramCount diagrams. Starting dictation...',
               style: const TextStyle(color: DiktaColors.goldLight),
             ),
             duration: const Duration(seconds: 3),
           ),
         );
       }
+
+      // Automatically begin dictation immediately as requested
+      await _startPlayback();
     } catch (e) {
       if (mounted) {
         setState(() => _isParsingPdf = false);
@@ -527,6 +546,10 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               children: [
+                if (_isPdfMode && _parsedDocumentItems.isNotEmpty) ...[
+                  _buildPdfDocumentViewerCard(),
+                  const SizedBox(height: 16),
+                ],
                 _buildActiveDictationCard(),
                 const SizedBox(height: 12),
                 _buildQuickPacingSettingsBar(),
@@ -537,6 +560,290 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                 const SizedBox(height: 16),
                 _buildSessionLogSection(),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool _isItemBeingSpoken(DocumentItem item) {
+    if (_currentChunk == null) return false;
+    final chunkText = _currentChunk!.text.trim().toLowerCase();
+    if (chunkText.isEmpty) return false;
+
+    final itemText = item.text.trim().toLowerCase();
+    final spokenText = item.spokenText.trim().toLowerCase();
+
+    if (itemText.isNotEmpty) {
+      if (itemText == chunkText) return true;
+      if (itemText.length >= 12 && chunkText.contains(itemText)) return true;
+      if (chunkText.length >= 12 && itemText.contains(chunkText)) return true;
+    }
+    if (spokenText.isNotEmpty) {
+      if (spokenText == chunkText) return true;
+      if (spokenText.length >= 12 && chunkText.contains(spokenText)) return true;
+      if (chunkText.length >= 12 && spokenText.contains(chunkText)) return true;
+    }
+    return false;
+  }
+
+  void _autoScrollPdfViewer() {
+    if (!_pdfScrollController.hasClients) return;
+    if (!_pdfScrollController.position.hasContentDimensions) return;
+    if (_parsedDocumentItems.isEmpty) return;
+    final activeIndex = _parsedDocumentItems.indexWhere(_isItemBeingSpoken);
+    if (activeIndex != -1) {
+      final targetOffset = (activeIndex * 68.0).clamp(0.0, _pdfScrollController.position.maxScrollExtent);
+      _pdfScrollController.animateTo(
+        targetOffset,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
+  /// Interactive In-App PDF Document Viewer with Live Dictation Highlighting
+  Widget _buildPdfDocumentViewerCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: DiktaColors.cardSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: DiktaColors.goldBorder, width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: DiktaColors.burgundyDeep.withOpacity(0.06),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header: PDF Document Name, Page Counter, Close/Toggle
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: const BoxDecoration(
+              color: DiktaColors.goldParchment,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(15)),
+              border: Border(
+                bottom: BorderSide(color: DiktaColors.goldBorder),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(5),
+                  decoration: BoxDecoration(
+                    color: DiktaColors.burgundyPrimary,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Icon(
+                    Icons.picture_as_pdf,
+                    size: 15,
+                    color: DiktaColors.goldLight,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _loadedPdfFileName ?? 'PDF Notes Document',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: DiktaColors.burgundyPrimary,
+                          letterSpacing: 0.2,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        '${_parsedDocumentItems.length} parsed items · Auto-highlighting live speech',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: DiktaColors.inkSecondary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                InkWell(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    setState(() {
+                      _isPdfMode = false;
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(6),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: DiktaColors.goldBorder),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.close, size: 12, color: DiktaColors.inkSecondary),
+                        SizedBox(width: 4),
+                        Text(
+                          'Exit PDF',
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: DiktaColors.inkSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Scrollable In-App Document Sheet with Live Highlighting
+          Container(
+            constraints: const BoxConstraints(maxHeight: 280),
+            child: Scrollbar(
+              controller: _pdfScrollController,
+              thumbVisibility: true,
+              child: ListView.separated(
+                controller: _pdfScrollController,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                itemCount: _parsedDocumentItems.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final item = _parsedDocumentItems[index];
+                  final isSpeaking = _isItemBeingSpoken(item);
+
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeOut,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: isSpeaking
+                          ? DiktaColors.goldLight.withOpacity(0.5)
+                          : (item.isHeading ? DiktaColors.goldParchment.withOpacity(0.4) : Colors.white),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border(
+                        left: BorderSide(
+                          color: isSpeaking
+                              ? DiktaColors.burgundyPrimary
+                              : (item.isHeading ? DiktaColors.goldAntique : Colors.transparent),
+                          width: isSpeaking ? 4.0 : (item.isHeading ? 3.0 : 0.0),
+                        ),
+                        top: BorderSide(color: isSpeaking ? DiktaColors.goldBorder : DiktaColors.borderHairline.withOpacity(0.5)),
+                        right: BorderSide(color: isSpeaking ? DiktaColors.goldBorder : DiktaColors.borderHairline.withOpacity(0.5)),
+                        bottom: BorderSide(color: isSpeaking ? DiktaColors.goldBorder : DiktaColors.borderHairline.withOpacity(0.5)),
+                      ),
+                      boxShadow: isSpeaking
+                          ? [
+                              BoxShadow(
+                                color: DiktaColors.goldAntique.withOpacity(0.18),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (isSpeaking) ...[
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: DiktaColors.burgundyPrimary,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.volume_up, size: 10, color: DiktaColors.goldLight),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      'DICTATING NOW',
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 0.6,
+                                        color: DiktaColors.goldLight,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Spacer(),
+                              if (item.pageNumber != null)
+                                Text(
+                                  'Page ${item.pageNumber}',
+                                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: DiktaColors.burgundyPrimary),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                        ],
+
+                        // Heading, Paragraph, or Diagram rendering
+                        if (item.isHeading) ...[
+                          Text(
+                            item.text,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              fontFamily: 'serif',
+                              color: isSpeaking ? DiktaColors.burgundyPrimary : DiktaColors.inkPrimary,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ] else if (item.isDiagramPlaceholder) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: DiktaColors.goldLight.withOpacity(0.3),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: DiktaColors.goldBorder.withOpacity(0.6)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.draw_outlined, size: 16, color: DiktaColors.burgundyPrimary),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    item.spokenText,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontStyle: FontStyle.italic,
+                                      fontWeight: FontWeight.w600,
+                                      color: DiktaColors.burgundyPrimary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ] else ...[
+                          Text(
+                            item.text,
+                            style: TextStyle(
+                              fontSize: 13,
+                              height: 1.45,
+                              fontFamily: 'serif',
+                              fontWeight: isSpeaking ? FontWeight.w600 : FontWeight.w400,
+                              color: isSpeaking ? DiktaColors.burgundyPrimary : DiktaColors.inkPrimary,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                },
+              ),
             ),
           ),
         ],
@@ -640,7 +947,7 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                                 border: Border.all(color: DiktaColors.goldBorder),
                               ),
                               child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   Row(
                                     children: [
@@ -656,76 +963,112 @@ class _DictationTestScreenState extends State<DictationTestScreen> with SingleTi
                                         ),
                                       ),
                                       const Spacer(),
-                                      Text(
-                                        '${diffWords.length} ${diffWords.length == 1 ? 'word' : 'words'}',
-                                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: DiktaColors.goldDark),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: DiktaColors.goldLight,
+                                          borderRadius: BorderRadius.circular(4),
+                                          border: Border.all(color: DiktaColors.goldBorder.withOpacity(0.5)),
+                                        ),
+                                        child: Text(
+                                          '${diffWords.length} ${diffWords.length == 1 ? 'word' : 'words'}',
+                                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: DiktaColors.burgundyPrimary),
+                                        ),
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 8),
-                                  Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
-                                    children: diffWords.map((word) {
-                                      final displaySpelling = speller.formatSpellingForDisplay(word);
-                                      return Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius: BorderRadius.circular(8),
-                                          border: Border.all(color: DiktaColors.goldBorder),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: DiktaColors.goldAntique.withOpacity(0.08),
-                                              blurRadius: 4,
-                                              offset: const Offset(0, 1),
-                                            ),
-                                          ],
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(
-                                              word,
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w700,
-                                                color: DiktaColors.inkPrimary,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                              decoration: BoxDecoration(
-                                                color: DiktaColors.goldLight,
-                                                borderRadius: BorderRadius.circular(4),
-                                                border: Border.all(color: DiktaColors.goldBorder.withOpacity(0.5)),
-                                              ),
-                                              child: Text(
-                                                displaySpelling,
-                                                style: const TextStyle(
-                                                  fontSize: 11,
-                                                  fontFamily: 'monospace',
-                                                  fontWeight: FontWeight.w700,
-                                                  color: DiktaColors.burgundyPrimary,
-                                                  letterSpacing: 0.6,
+                                  const SizedBox(height: 10),
+                                  ...diffWords.map((word) {
+                                    final displaySpelling = speller.formatSpellingForDisplay(word);
+                                    return Container(
+                                      margin: const EdgeInsets.only(bottom: 8),
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: DiktaColors.goldBorder.withOpacity(0.8)),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: DiktaColors.goldAntique.withOpacity(0.06),
+                                            blurRadius: 3,
+                                            offset: const Offset(0, 1),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  word,
+                                                  style: const TextStyle(
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: DiktaColors.inkPrimary,
+                                                    fontFamily: 'serif',
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
                                                 ),
                                               ),
+                                              const SizedBox(width: 8),
+                                              InkWell(
+                                                onTap: () => _speakSingleSpelling(word),
+                                                borderRadius: BorderRadius.circular(6),
+                                                child: Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                  decoration: BoxDecoration(
+                                                    color: DiktaColors.goldLight.withOpacity(0.4),
+                                                    borderRadius: BorderRadius.circular(6),
+                                                    border: Border.all(color: DiktaColors.goldBorder.withOpacity(0.6)),
+                                                  ),
+                                                  child: const Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Icon(Icons.volume_up_rounded, size: 13, color: DiktaColors.burgundyPrimary),
+                                                      SizedBox(width: 4),
+                                                      Text(
+                                                        'Pronounce',
+                                                        style: TextStyle(
+                                                          fontSize: 10,
+                                                          fontWeight: FontWeight.w700,
+                                                          color: DiktaColors.burgundyPrimary,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Container(
+                                            width: double.infinity,
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                            decoration: BoxDecoration(
+                                              color: DiktaColors.parchmentBackground,
+                                              borderRadius: BorderRadius.circular(6),
+                                              border: Border.all(color: DiktaColors.goldBorder.withOpacity(0.4)),
                                             ),
-                                            const SizedBox(width: 4),
-                                            InkWell(
-                                              onTap: () => _speakSingleSpelling(word),
-                                              borderRadius: BorderRadius.circular(12),
-                                              child: const Padding(
-                                                padding: EdgeInsets.all(2),
-                                                child: Icon(Icons.volume_up_rounded, size: 15, color: DiktaColors.goldDark),
+                                            child: Text(
+                                              displaySpelling,
+                                              softWrap: true,
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                fontFamily: 'monospace',
+                                                fontWeight: FontWeight.w700,
+                                                color: DiktaColors.burgundyPrimary,
+                                                letterSpacing: 0.5,
+                                                height: 1.35,
                                               ),
                                             ),
-                                          ],
-                                        ),
-                                      );
-                                    }).toList(),
-                                  ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }),
                                 ],
                               ),
                             );

@@ -30,8 +30,9 @@ class WordSpeller {
 
     for (final token in rawTokens) {
       // Strip outer punctuation: commas, periods, quotes, brackets
-      final clean = token.replaceAll(RegExp(r"^[^a-zA-Z0-9\u0900-\u097F\u0C80-\u0CFF]+|[^a-zA-Z0-9\u0900-\u097F\u0C80-\u0CFF]+$"), '');
-      if (clean.length >= minLetterThreshold) {
+      final clean = token.replaceAll(RegExp(r"^[^a-zA-Z0-9\u0900-\u097F\u0C80-\u0CFF\u200C\u200D]+|[^a-zA-Z0-9\u0900-\u097F\u0C80-\u0CFF\u200C\u200D]+$"), '');
+      final hasLetters = RegExp(r'[a-zA-Z\u0900-\u097F\u0C80-\u0CFF]').hasMatch(clean);
+      if (clean.length >= minLetterThreshold && hasLetters) {
         final lower = clean.toLowerCase();
         if (!seen.contains(lower)) {
           seen.add(lower);
@@ -91,7 +92,7 @@ class WordSpeller {
   /// Chunks aksharas (syllabic graphemes) into two halves for human teaching pace:
   /// First half spelled -> spoken -> second half spelled -> full word.
   String formatSpellingForSpeech(String word) {
-    final clean = word.replaceAll(RegExp(r"[^a-zA-Z\u0900-\u097F\u0C80-\u0CFF]"), '');
+    final clean = word.replaceAll(RegExp(r"[^a-zA-Z\u0900-\u097F\u0C80-\u0CFF\u200C\u200D]"), '');
     if (clean.isEmpty) return '';
 
     // English / Latin
@@ -130,7 +131,7 @@ class WordSpeller {
   /// Formats a single word into a clean, human-readable chunked display string for UI chips.
   /// E.g. "M · I · T · O (mito)   ·   C · H · O · N · D · R · I · A (mitochondria)"
   String formatSpellingForDisplay(String word) {
-    final clean = word.replaceAll(RegExp(r"[^a-zA-Z\u0900-\u097F\u0C80-\u0CFF]"), '');
+    final clean = word.replaceAll(RegExp(r"[^a-zA-Z\u0900-\u097F\u0C80-\u0CFF\u200C\u200D]"), '');
     if (clean.isEmpty) return word;
 
     if (RegExp(r'^[a-zA-Z]+$').hasMatch(clean)) {
@@ -138,12 +139,15 @@ class WordSpeller {
       if (chunks.length <= 1) {
         return clean.toUpperCase().split('').join(' · ');
       }
-      return chunks.map((c) {
+      final parts = <String>[];
+      for (int i = 0; i < chunks.length; i++) {
+        final c = chunks[i];
         final dots = c.toUpperCase().split('').join(' · ');
-        final isLast = (c == chunks.last);
+        final isLast = (i == chunks.length - 1);
         final label = isLast ? word.toLowerCase() : c.toLowerCase();
-        return '$dots ($label)';
-      }).join('   ·   ');
+        parts.add('$dots ($label)');
+      }
+      return parts.join('   ·   ');
     }
 
     final graphemes = clean.characters.where((c) => c.trim().isNotEmpty).toList();
@@ -157,26 +161,36 @@ class WordSpeller {
     return '$half1   ·   $half2 ($clean)';
   }
 
-  /// Enriches the spoken text of a chunk with pedagogical spelled-out difficult words.
+  /// Enriches the spoken text of a chunk with pedagogical spelled-out difficult words,
+  /// spoken immediately right after that difficult word is spoken.
   ///
   /// E.g.: "Mitochondria are membrane-bound cell organelles"
-  /// -> "Mitochondria are membrane-bound cell organelles. Spelled: M, I, T, O. mito. C, H, O, N, D, R, I, A. mitochondria."
+  /// -> "Mitochondria, spelled: M, I, T, O. mito. C, H, O, N, D, R, I, A. mitochondria. are membrane-bound cell organelles, spelled: O, R, G, A, N, E, L, L, E, S. organelles."
   String buildSpokenTextWithSpelling(String phrase) {
     final difficultWords = findDifficultWords(phrase);
     if (difficultWords.isEmpty) return phrase;
 
-    final buffer = StringBuffer(phrase);
-    if (!phrase.trim().endsWith('.') && !phrase.trim().endsWith(',')) {
-      buffer.write('.');
-    }
-
+    String result = phrase;
     for (final word in difficultWords) {
       final spelling = formatSpellingForSpeech(word);
-      if (spelling.isNotEmpty) {
-        buffer.write(' $word. Spelled: $spelling');
-      }
+      if (spelling.isEmpty) continue;
+
+      final isAscii = RegExp(r'^[a-zA-Z0-9]+$').hasMatch(word);
+      final pattern = isAscii
+          ? RegExp(r'\b(' + RegExp.escape(word) + r')([,\.\;:\?\!\)"\u201D\u2019]*)(\s|$)', caseSensitive: false)
+          : RegExp(r'(' + RegExp.escape(word) + r')([,\.\;:\?\!\)"\u201D\u2019]*)(\s|$)', caseSensitive: false);
+
+      result = result.replaceFirstMapped(pattern, (match) {
+        final matchedWord = match.group(1)!;
+        final trailingPunct = match.group(2) ?? '';
+        final trailingSpace = match.group(3) ?? '';
+        final cleanSpelling = spelling.endsWith('.') ? spelling : '$spelling.';
+        final postPunct = (trailingPunct.contains('?') || trailingPunct.contains('!')) ? '$trailingPunct ' : '';
+
+        return '$matchedWord, spelled: $cleanSpelling $postPunct$trailingSpace';
+      });
     }
 
-    return buffer.toString();
+    return result.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 }

@@ -95,34 +95,62 @@ class PdfDocumentParser {
         final lines = pageLines[p] ?? [];
         final positionedItems = <_PagePositionedItem>[];
 
-        // Classify text lines into headings or paragraphs.
-        for (int i = 0; i < lines.length; i++) {
-          final line = lines[i];
-          final cleanText = line.text.trim();
-          if (cleanText.isEmpty) continue;
+        if (lines.isNotEmpty) {
+          // Classify text lines into headings or paragraphs.
+          for (int i = 0; i < lines.length; i++) {
+            final line = lines[i];
+            final cleanText = line.text.trim();
+            if (cleanText.isEmpty) continue;
 
-          final isFirstLine = i == 0;
-          final isHeading =
-              (line.fontSize >= headingThreshold && line.fontSize > 0) ||
-                  isExplicitHeadingText(cleanText,
-                      isFirstLineOfSection: isFirstLine);
+            final isFirstLine = i == 0;
+            final isHeading =
+                (line.fontSize >= headingThreshold && line.fontSize > 0) ||
+                    isExplicitHeadingText(cleanText,
+                        isFirstLineOfSection: isFirstLine);
 
-          final item = isHeading
-              ? DocumentItem.heading(
-                  text: cleanText,
-                  fontSize: line.fontSize > 0 ? line.fontSize : averageFontSize,
-                  pageNumber: pageNumber,
-                )
-              : DocumentItem.paragraph(
-                  text: cleanText,
-                  fontSize: line.fontSize > 0 ? line.fontSize : averageFontSize,
-                  pageNumber: pageNumber,
-                );
+            final item = isHeading
+                ? DocumentItem.heading(
+                    text: cleanText,
+                    fontSize: line.fontSize > 0 ? line.fontSize : averageFontSize,
+                    pageNumber: pageNumber,
+                  )
+                : DocumentItem.paragraph(
+                    text: cleanText,
+                    fontSize: line.fontSize > 0 ? line.fontSize : averageFontSize,
+                    pageNumber: pageNumber,
+                  );
 
-          positionedItems.add(_PagePositionedItem(
-            item: item,
-            top: line.bounds.top,
-          ));
+            positionedItems.add(_PagePositionedItem(
+              item: item,
+              top: line.bounds.top,
+            ));
+          }
+        } else {
+          // Robust fallback: extract raw text for this page if structured lines unavailable
+          try {
+            final pageText = extractor.extractText(startPageIndex: p, endPageIndex: p);
+            final rawSplit = pageText.split(RegExp(r'\r?\n')).map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+            for (int i = 0; i < rawSplit.length; i++) {
+              final rawLine = rawSplit[i];
+              final isFirstLine = i == 0;
+              final isHeading = isExplicitHeadingText(rawLine, isFirstLineOfSection: isFirstLine);
+              final item = isHeading
+                  ? DocumentItem.heading(
+                      text: rawLine,
+                      fontSize: 16.0,
+                      pageNumber: pageNumber,
+                    )
+                  : DocumentItem.paragraph(
+                      text: rawLine,
+                      fontSize: averageFontSize,
+                      pageNumber: pageNumber,
+                    );
+              positionedItems.add(_PagePositionedItem(
+                item: item,
+                top: (i + 1) * 24.0,
+              ));
+            }
+          } catch (_) {}
         }
 
         // Add detected diagram placeholders with lines-to-leave calculations.
@@ -144,6 +172,10 @@ class PdfDocumentParser {
         for (final pItem in positionedItems) {
           items.add(pItem.item);
         }
+      }
+
+      if (items.isEmpty) {
+        return _parseFallback(bytes);
       }
 
       return items;
@@ -265,17 +297,20 @@ class PdfDocumentParser {
     return false;
   }
 
-  /// Detects whether the predominant language across items is Kannada ('kn') or English ('en').
+  /// Detects whether the predominant language across items is Kannada ('kn'), Hindi ('hi'), or English ('en').
   ///
-  /// Checks characters against the Unicode Kannada block (\u0C80-\u0CFF).
+  /// Checks characters against the Unicode Kannada (\u0C80-\u0CFF) and Devanagari (\u0900-\u097F) blocks.
   static String detectLanguage(List<DocumentItem> items) {
     int kannadaChars = 0;
+    int devanagariChars = 0;
     int latinChars = 0;
 
     for (final item in items) {
       for (final rune in item.text.runes) {
         if (rune >= 0x0C80 && rune <= 0x0CFF) {
           kannadaChars++;
+        } else if (rune >= 0x0900 && rune <= 0x097F) {
+          devanagariChars++;
         } else if ((rune >= 0x0041 && rune <= 0x005A) ||
             (rune >= 0x0061 && rune <= 0x007A)) {
           latinChars++;
@@ -283,6 +318,9 @@ class PdfDocumentParser {
       }
     }
 
+    if (devanagariChars > kannadaChars && devanagariChars > latinChars) {
+      return 'hi';
+    }
     if (kannadaChars > latinChars && kannadaChars > 0) {
       return 'kn';
     }
@@ -450,6 +488,15 @@ class PdfDocumentParser {
 
   /// Graceful fallback parser when PDF binary parsing fails or plain text is supplied.
   static List<DocumentItem> _parseFallback(List<int> bytes) {
+    // If the input is a binary PDF (magic bytes %PDF-), do not decode raw bytecode as UTF-8
+    if (bytes.length >= 5 &&
+        bytes[0] == 0x25 && // %
+        bytes[1] == 0x50 && // P
+        bytes[2] == 0x44 && // D
+        bytes[3] == 0x46) { // F
+      return const [];
+    }
+
     try {
       final text = utf8.decode(bytes, allowMalformed: true);
       final rawLines =

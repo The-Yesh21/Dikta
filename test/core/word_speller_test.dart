@@ -28,6 +28,12 @@ void main() {
       expect(defaultSpeller.findDifficultWords(''), isEmpty);
       expect(defaultSpeller.findDifficultWords('a an the is producing membrane'), isEmpty);
     });
+
+    test('excludes long numeric tokens like phone numbers from difficult words', () {
+      const text = 'Call 9880123456 or 123456789012 for support.';
+      final difficult = defaultSpeller.findDifficultWords(text);
+      expect(difficult, isEmpty);
+    });
   });
 
   group('WordSpeller Pedagogical Syllable Spelling Formatting', () {
@@ -42,15 +48,32 @@ void main() {
       expect(display, contains('C · H · O · N · D · R · I · A (mitochondria)'));
     });
 
-    test('builds enriched spoken text with pedagogical difficult word spelling', () {
+    test('builds enriched spoken text with pedagogical spelling right after difficult word', () {
       const phrase = 'Mitochondria are powerful cell organelles.';
       final enriched = defaultSpeller.buildSpokenTextWithSpelling(phrase);
 
-      expect(enriched, contains('Mitochondria'));
+      // Verify spelling follows immediately after Mitochondria
       expect(
         enriched,
-        contains('Mitochondria. Spelled: M, I, T, O. mito. C, H, O, N, D, R, I, A. mitochondria.'),
+        contains('Mitochondria, spelled: M, I, T, O. mito. C, H, O, N, D, R, I, A. mitochondria. are powerful cell'),
       );
+      // Verify spelling follows immediately after organelles with pedagogical syllable chunking
+      expect(
+        enriched,
+        contains('cell organelles, spelled: O, R, G, A, N. organ. E, L, L, E, S. organelles.'),
+      );
+    });
+
+    test('handles difficult words followed by question marks or inside parentheses', () {
+      const question = 'What is photosynthesis?';
+      final enrichedQuestion = defaultSpeller.buildSpokenTextWithSpelling(question);
+      expect(enrichedQuestion, contains('photosynthesis, spelled:'));
+      expect(enrichedQuestion, contains('?'));
+
+      const parenthesized = 'The organelle (mitochondria) produces energy!';
+      final enrichedParen = defaultSpeller.buildSpokenTextWithSpelling(parenthesized);
+      expect(enrichedParen, contains('mitochondria, spelled:'));
+      expect(enrichedParen, contains('!'));
     });
 
     test('formats short words directly if under chunking length', () {
